@@ -19,6 +19,14 @@
 			 2*(BITS_PER_LONG*3/10) + (MODULE_NAME_LEN - 1) + 1)
 
 struct cred;
+/* How and when do we show kallsyms values? */
+extern int kallsyms_show_value(void);
+#ifndef CONFIG_64BIT
+# define KALLSYM_FMT "%08lx"
+#else
+# define KALLSYM_FMT "%016lx"
+#endif
+
 struct module;
 
 static inline int is_kernel_inittext(unsigned long addr)
