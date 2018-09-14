@@ -1655,6 +1655,8 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		break;
 	case BPF_LIRC_MODE2:
 		ptype = BPF_PROG_TYPE_LIRC_MODE2;
+	case BPF_FLOW_DISSECTOR:
+		ptype = BPF_PROG_TYPE_FLOW_DISSECTOR;
 		break;
 	default:
 		return -EINVAL;
@@ -1731,6 +1733,8 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_SKB, NULL);
 	case BPF_LIRC_MODE2:
 		return lirc_prog_detach(attr);
+	case BPF_FLOW_DISSECTOR:
+		return skb_flow_dissector_bpf_prog_detach(attr);
 	default:
 		return -EINVAL;
 	}
