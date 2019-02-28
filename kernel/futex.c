@@ -1399,7 +1399,7 @@ static int lookup_pi_state(u32 __user *uaddr, u32 uval,
 static int lock_pi_update_atomic(u32 __user *uaddr, u32 uval, u32 newval)
 {
 	int err;
-	u32 curval;
+	u32 uninitialized_var(curval);
 
 	if (unlikely(should_fail_futex(true)))
 		return -EFAULT;
@@ -2453,7 +2453,12 @@ static int __fixup_pi_state_owner(u32 __user *uaddr, struct futex_q *q,
 	u32 uval, uninitialized_var(curval), newval, newtid;
 	struct futex_pi_state *pi_state = q->pi_state;
 	struct task_struct *oldowner, *newowner;
-	int err = 0;
+	u32 newtid;
+	int ret, err = 0;
+
+	lockdep_assert_held(q->lock_ptr);
+
+	raw_spin_lock_irq(&pi_state->pi_mutex.wait_lock);
 
 	oldowner = pi_state->owner;
 
@@ -2572,16 +2577,17 @@ handle_err:
 
 	switch (err) {
 	case -EFAULT:
-		err = fault_in_user_writeable(uaddr);
+		ret = fault_in_user_writeable(uaddr);
 		break;
 
 	case -EAGAIN:
 		cond_resched();
-		err = 0;
+		ret = 0;
 		break;
 
 	default:
 		WARN_ON_ONCE(1);
+		ret = err;
 		break;
 	}
 
@@ -3739,12 +3745,8 @@ err_unlock:
 static int handle_futex_death(u32 __user *uaddr, struct task_struct *curr,
 			      bool pi, bool pending_op)
 {
-	u32 uval, nval, mval;
+	u32 uval, uninitialized_var(nval), mval;
 	int err;
-
-	/* Futex address must be 32bit aligned */
-	if ((((unsigned long)uaddr) % sizeof(*uaddr)) != 0)
-		return -1;
 
 	/* Futex address must be 32bit aligned */
 	if ((((unsigned long)uaddr) % sizeof(*uaddr)) != 0)
@@ -3753,42 +3755,6 @@ static int handle_futex_death(u32 __user *uaddr, struct task_struct *curr,
 retry:
 	if (get_user(uval, uaddr))
 		return -1;
-
-	/*
-	 * Special case for regular (non PI) futexes. The unlock path in
-	 * user space has two race scenarios:
-	 *
-	 * 1. The unlock path releases the user space futex value and
-	 *    before it can execute the futex() syscall to wake up
-	 *    waiters it is killed.
-	 *
-	 * 2. A woken up waiter is killed before it can acquire the
-	 *    futex in user space.
-	 *
-	 * In both cases the TID validation below prevents a wakeup of
-	 * potential waiters which can cause these waiters to block
-	 * forever.
-	 *
-	 * In both cases the following conditions are met:
-	 *
-	 *	1) task->robust_list->list_op_pending != NULL
-	 *	   @pending_op == true
-	 *	2) User space futex value == 0
-	 *	3) Regular futex: @pi == false
-	 *
-	 * If these conditions are met, it is safe to attempt waking up a
-	 * potential waiter without touching the user space futex value and
-	 * trying to set the OWNER_DIED bit. The user space futex value is
-	 * uncontended and the rest of the user space mutex state is
-	 * consistent, so a woken waiter will just take over the
-	 * uncontended futex. Setting the OWNER_DIED bit would create
-	 * inconsistent state and malfunction of the user space owner died
-	 * handling.
-	 */
-	if (pending_op && !pi && !uval) {
-		futex_wake(uaddr, 1, 1, FUTEX_BITSET_MATCH_ANY);
-		return 0;
-	}
 
 	if ((uval & FUTEX_TID_MASK) != task_pid_vnr(curr))
 		return 0;
