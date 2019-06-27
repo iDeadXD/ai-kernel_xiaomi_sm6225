@@ -104,6 +104,15 @@ int __cgroup_bpf_check_dev_permission(short dev_type, u32 major, u32 minor,
 				      short access, enum bpf_attach_type type);
 
 static inline void bpf_cgroup_storage_set(struct bpf_cgroup_storage *storage)
+
+int __cgroup_bpf_run_filter_setsockopt(struct sock *sock, int *level,
+				       int *optname, char __user *optval,
+				       int *optlen, char **kernel_optval);
+int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
+				       int optname, char __user *optval,
+				       int __user *optlen, int max_optlen,
+				       int retval);
+
 {
 	struct bpf_storage_buffer *buf;
 
@@ -261,6 +270,38 @@ int cgroup_bpf_prog_query(const union bpf_attr *attr,
 	__ret;								       \
 })
 
+#define BPF_CGROUP_RUN_PROG_SETSOCKOPT(sock, level, optname, optval, optlen,   \
+				       kernel_optval)			       \
+({									       \
+	int __ret = 0;							       \
+	if (cgroup_bpf_enabled)						       \
+		__ret = __cgroup_bpf_run_filter_setsockopt(sock, level,	       \
+							   optname, optval,    \
+							   optlen,	       \
+							   kernel_optval);     \
+	__ret;								       \
+})
+
+#define BPF_CGROUP_GETSOCKOPT_MAX_OPTLEN(optlen)			       \
+({									       \
+	int __ret = 0;							       \
+	if (cgroup_bpf_enabled)						       \
+		get_user(__ret, optlen);				       \
+	__ret;								       \
+})
+
+#define BPF_CGROUP_RUN_PROG_GETSOCKOPT(sock, level, optname, optval, optlen,   \
+				       max_optlen, retval)		       \
+({									       \
+	int __ret = retval;						       \
+	if (cgroup_bpf_enabled)						       \
+		__ret = __cgroup_bpf_run_filter_getsockopt(sock, level,	       \
+							   optname, optval,    \
+							   optlen, max_optlen, \
+							   retval);	       \
+	__ret;								       \
+})
+
 #else
 
 struct bpf_prog;
@@ -317,6 +358,11 @@ static inline void bpf_cgroup_storage_free(
 #define BPF_CGROUP_RUN_PROG_SOCK_OPS(sock_ops) ({ 0; })
 #define BPF_CGROUP_RUN_PROG_DEVICE_CGROUP(type,major,minor,access) ({ 0; })
 #define BPF_CGROUP_RUN_PROG_SYSCTL(head, table, write) ({ 0; })
+#define BPF_CGROUP_GETSOCKOPT_MAX_OPTLEN(optlen) ({ 0; })
+#define BPF_CGROUP_RUN_PROG_GETSOCKOPT(sock, level, optname, optval, \
+				       optlen, max_optlen, retval) ({ retval; })
+#define BPF_CGROUP_RUN_PROG_SETSOCKOPT(sock, level, optname, optval, optlen, \
+				       kernel_optval) ({ 0; })
 
 #endif /* CONFIG_CGROUP_BPF */
 
