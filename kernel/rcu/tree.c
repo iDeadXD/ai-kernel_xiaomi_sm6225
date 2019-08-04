@@ -423,6 +423,7 @@ void rcu_momentary_dyntick_idle(void)
 	/* It is illegal to call this from idle state. */
 	WARN_ON_ONCE(!(special & RCU_DYNTICK_CTRL_CTR));
 }
+EXPORT_SYMBOL_GPL(rcu_momentary_dyntick_idle);
 
 /*
  * Note a context switch.  This is a quiescent state for RCU-sched,
