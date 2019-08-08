@@ -57,6 +57,67 @@ struct rcu_head *rcu_cblist_dequeue(struct rcu_cblist *rclp)
 	return rhp;
 }
 
+/* Set the length of an rcu_segcblist structure. */
+static void rcu_segcblist_set_len(struct rcu_segcblist *rsclp, long v)
+{
+#ifdef CONFIG_RCU_NOCB_CPU
+	atomic_long_set(&rsclp->len, v);
+#else
+	WRITE_ONCE(rsclp->len, v);
+#endif
+}
+
+/*
+ * Increase the numeric length of an rcu_segcblist structure by the
+ * specified amount, which can be negative.  This can cause the ->len
+ * field to disagree with the actual number of callbacks on the structure.
+ * This increase is fully ordered with respect to the callers accesses
+ * both before and after.
+ */
+static void rcu_segcblist_add_len(struct rcu_segcblist *rsclp, long v)
+{
+#ifdef CONFIG_RCU_NOCB_CPU
+	smp_mb__before_atomic(); /* Up to the caller! */
+	atomic_long_add(v, &rsclp->len);
+	smp_mb__after_atomic(); /* Up to the caller! */
+#else
+	smp_mb(); /* Up to the caller! */
+	WRITE_ONCE(rsclp->len, rsclp->len + v);
+	smp_mb(); /* Up to the caller! */
+#endif
+}
+
+/*
+ * Increase the numeric length of an rcu_segcblist structure by one.
+ * This can cause the ->len field to disagree with the actual number of
+ * callbacks on the structure.  This increase is fully ordered with respect
+ * to the callers accesses both before and after.
+ */
+void rcu_segcblist_inc_len(struct rcu_segcblist *rsclp)
+{
+	rcu_segcblist_add_len(rsclp, 1);
+}
+
+/*
+ * Exchange the numeric length of the specified rcu_segcblist structure
+ * with the specified value.  This can cause the ->len field to disagree
+ * with the actual number of callbacks on the structure.  This exchange is
+ * fully ordered with respect to the callers accesses both before and after.
+ */
+static long rcu_segcblist_xchg_len(struct rcu_segcblist *rsclp, long v)
+{
+#ifdef CONFIG_RCU_NOCB_CPU
+	return atomic_long_xchg(&rsclp->len, v);
+#else
+	long ret = rsclp->len;
+
+	smp_mb(); /* Up to the caller! */
+	WRITE_ONCE(rsclp->len, v);
+	smp_mb(); /* Up to the caller! */
+	return ret;
+#endif
+}
+
 /*
  * Initialize an rcu_segcblist structure.
  */
