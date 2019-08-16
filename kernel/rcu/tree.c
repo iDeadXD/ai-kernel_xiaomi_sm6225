@@ -1316,7 +1316,10 @@ static int rcu_implicit_dynticks_qs(struct rcu_data *rdp)
 	 * see if the CPU is getting hammered with interrupts, but only
 	 * once per grace period, just to keep the IPIs down to a dull roar.
 	 */
-	if (jiffies - rdp->rsp->gp_start > rcu_jiffies_till_stall_check() / 2) {
+	if (tick_nohz_full_cpu(rdp->cpu) &&
+		   time_after(jiffies,
+			      READ_ONCE(rdp->last_fqs_resched) + jtsq * 3)) {
+		WRITE_ONCE(*ruqp, true);
 		resched_cpu(rdp->cpu);
 		if (IS_ENABLED(CONFIG_IRQ_WORK) &&
 		    !rdp->rcu_iw_pending && rdp->rcu_iw_gp_seq != rnp->gp_seq &&
