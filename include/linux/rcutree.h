@@ -49,7 +49,6 @@ void synchronize_sched_expedited(void);
 void synchronize_rcu_expedited(void);
 
 void kfree_call_rcu(struct rcu_head *head, rcu_callback_t func);
-void kfree_call_rcu_nobatch(struct rcu_head *head, rcu_callback_t func);
 
 /**
  * synchronize_rcu_bh_expedited - Brute-force RCU-bh grace period
