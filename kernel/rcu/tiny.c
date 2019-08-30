@@ -35,6 +35,7 @@
 #include <linux/time.h>
 #include <linux/cpu.h>
 #include <linux/prefetch.h>
+#include <linux/slab.h>
 
 #include "rcu.h"
 
@@ -127,10 +128,32 @@ void rcu_check_callbacks(int user)
 }
 
 /*
- * Invoke the RCU callbacks on the specified rcu_ctrlkblk structure
- * whose grace period has elapsed.
+ * Reclaim the specified callback, either by invoking it for non-kfree cases or
+ * freeing it directly (for kfree). Return true if kfreeing, false otherwise.
  */
-static void __rcu_process_callbacks(struct rcu_ctrlblk *rcp)
+static inline bool rcu_reclaim_tiny(struct rcu_head *head)
+{
+	rcu_callback_t f;
+	unsigned long offset = (unsigned long)head->func;
+
+	rcu_lock_acquire(&rcu_callback_map);
+	if (__is_kfree_rcu_offset(offset)) {
+		trace_rcu_invoke_kfree_callback("", head, offset);
+		kfree((void *)head - offset);
+		rcu_lock_release(&rcu_callback_map);
+		return true;
+	}
+
+	trace_rcu_invoke_callback("", head);
+	f = head->func;
+	WRITE_ONCE(head->func, (rcu_callback_t)0L);
+	f(head);
+	rcu_lock_release(&rcu_callback_map);
+	return false;
+}
+
+/* Invoke the RCU callbacks whose grace period has elapsed.  */
+static __latent_entropy void rcu_process_callbacks(struct softirq_action *unused)
 {
 	struct rcu_head *next, *list;
 	unsigned long flags;
@@ -156,7 +179,7 @@ static void __rcu_process_callbacks(struct rcu_ctrlblk *rcp)
 		prefetch(next);
 		debug_rcu_head_unqueue(list);
 		local_bh_disable();
-		__rcu_reclaim("", list);
+		rcu_reclaim_tiny(list);
 		local_bh_enable();
 		list = next;
 	}

@@ -22,13 +22,10 @@
 
 #include <linux/rcu_segcblist.h>
 
-/*
- * Account for the fact that a previously dequeued callback turned out
- * to be marked as lazy.
- */
-static inline void rcu_cblist_dequeued_lazy(struct rcu_cblist *rclp)
+/* Return number of callbacks in the specified callback list. */
+static inline long rcu_cblist_n_cbs(struct rcu_cblist *rclp)
 {
-	rclp->len_lazy--;
+	return READ_ONCE(rclp->len);
 }
 
 void rcu_cblist_init(struct rcu_cblist *rclp);
@@ -56,18 +53,6 @@ static inline bool rcu_segcblist_empty(struct rcu_segcblist *rsclp)
 static inline long rcu_segcblist_n_cbs(struct rcu_segcblist *rsclp)
 {
 	return READ_ONCE(rsclp->len);
-}
-
-/* Return number of lazy callbacks in segmented callback list. */
-static inline long rcu_segcblist_n_lazy_cbs(struct rcu_segcblist *rsclp)
-{
-	return rsclp->len_lazy;
-}
-
-/* Return number of lazy callbacks in segmented callback list. */
-static inline long rcu_segcblist_n_nonlazy_cbs(struct rcu_segcblist *rsclp)
-{
-	return rsclp->len - rsclp->len_lazy;
 }
 
 /*
@@ -117,9 +102,9 @@ bool rcu_segcblist_pend_cbs(struct rcu_segcblist *rsclp);
 struct rcu_head *rcu_segcblist_first_cb(struct rcu_segcblist *rsclp);
 struct rcu_head *rcu_segcblist_first_pend_cb(struct rcu_segcblist *rsclp);
 void rcu_segcblist_enqueue(struct rcu_segcblist *rsclp,
-			   struct rcu_head *rhp, bool lazy);
+			   struct rcu_head *rhp);
 bool rcu_segcblist_entrain(struct rcu_segcblist *rsclp,
-			   struct rcu_head *rhp, bool lazy);
+			   struct rcu_head *rhp);
 void rcu_segcblist_extract_count(struct rcu_segcblist *rsclp,
 				 struct rcu_cblist *rclp);
 void rcu_segcblist_extract_done_cbs(struct rcu_segcblist *rsclp,
