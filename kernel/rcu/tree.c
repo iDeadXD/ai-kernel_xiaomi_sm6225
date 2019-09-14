@@ -540,16 +540,8 @@ module_param_cb(jiffies_till_first_fqs, &first_fqs_jiffies_ops, &jiffies_till_fi
 module_param_cb(jiffies_till_next_fqs, &next_fqs_jiffies_ops, &jiffies_till_next_fqs, 0644);
 module_param(rcu_kick_kthreads, bool, 0644);
 
-/*
- * How long the grace period must be before we start recruiting
- * quiescent-state help from rcu_note_context_switch().
- */
-static ulong jiffies_till_sched_qs = HZ / 10;
-module_param(jiffies_till_sched_qs, ulong, 0444);
-
-static void force_qs_rnp(struct rcu_state *rsp, int (*f)(struct rcu_data *rsp));
-static void force_quiescent_state(struct rcu_state *rsp);
-static int rcu_pending(void);
+static void force_qs_rnp(int (*f)(struct rcu_data *rdp));
+static int rcu_pending(int user);
 
 /*
  * Return the number of RCU GPs completed thus far for debug & stats.
@@ -2755,7 +2747,7 @@ void rcu_check_callbacks(int user)
 		}
 		__this_cpu_write(rcu_dynticks.rcu_urgent_qs, false);
 	}
-	if (rcu_pending())
+	if (rcu_pending(user))
 		invoke_rcu_core();
 
 	trace_rcu_utilization(TPS("End scheduler-tick"));
@@ -3324,48 +3316,7 @@ EXPORT_SYMBOL_GPL(cond_synchronize_rcu);
  * to determine whether or not a full grace period has elapsed in the
  * meantime.
  */
-unsigned long get_state_synchronize_sched(void)
-{
-	/*
-	 * Any prior manipulation of RCU-protected data must happen
-	 * before the load from ->gp_seq.
-	 */
-	smp_mb();  /* ^^^ */
-	return rcu_seq_snap(&rcu_sched_state.gp_seq);
-}
-EXPORT_SYMBOL_GPL(get_state_synchronize_sched);
-
-/**
- * cond_synchronize_sched - Conditionally wait for an RCU-sched grace period
- *
- * @oldstate: return value from earlier call to get_state_synchronize_sched()
- *
- * If a full RCU-sched grace period has elapsed since the earlier call to
- * get_state_synchronize_sched(), just return.  Otherwise, invoke
- * synchronize_sched() to wait for a full grace period.
- *
- * Yes, this function does not take counter wrap into account.  But
- * counter wrap is harmless.  If the counter wraps, we have waited for
- * more than 2 billion grace periods (and way more on a 64-bit system!),
- * so waiting for one additional grace period should be just fine.
- */
-void cond_synchronize_sched(unsigned long oldstate)
-{
-	if (!rcu_seq_done(&rcu_sched_state.gp_seq, oldstate))
-		synchronize_sched();
-	else
-		smp_mb(); /* Ensure GP ends before subsequent accesses. */
-}
-EXPORT_SYMBOL_GPL(cond_synchronize_sched);
-
-/*
- * Check to see if there is any immediate RCU-related work to be done
- * by the current CPU, for the specified type of RCU, returning 1 if so.
- * The checks are in order of increasing expense: checks that can be
- * carried out against CPU-local state are performed first.  However,
- * we must check for CPU stalls first, else we might not get a chance.
- */
-static int __rcu_pending(struct rcu_state *rsp, struct rcu_data *rdp)
+static int rcu_pending(int user)
 {
 	bool gp_in_progress;
 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
@@ -3374,8 +3325,8 @@ static int __rcu_pending(struct rcu_state *rsp, struct rcu_data *rdp)
 	/* Check for CPU stalls, if enabled. */
 	check_cpu_stall(rsp, rdp);
 
-	/* Is this CPU a NO_HZ_FULL CPU that should ignore RCU? */
-	if (rcu_nohz_full_cpu(rsp))
+	/* Is this a nohz_full CPU in userspace or idle?  (Ignore RCU if so.) */
+	if ((user || rcu_is_cpu_rrupt_from_idle()) && rcu_nohz_full_cpu())
 		return 0;
 
 	/* Is the RCU core waiting for a quiescent state from this CPU? */
