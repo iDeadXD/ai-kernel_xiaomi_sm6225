@@ -90,28 +90,22 @@ static const char *tp_##sname##_varname __used __tracepoint_string = sname##_var
 # define RCU_STATE_NAME(sname) __stringify(sname)
 #endif
 
-#define RCU_STATE_INITIALIZER(sname, sabbr, cr) \
-DEFINE_RCU_TPS(sname) \
-static DEFINE_PER_CPU_SHARED_ALIGNED(struct rcu_data, sname##_data); \
-struct rcu_state sname##_state = { \
-	.level = { &sname##_state.node[0] }, \
-	.rda = &sname##_data, \
-	.call = cr, \
-	.gp_state = RCU_GP_IDLE, \
-	.gp_seq = (0UL - 300UL) << RCU_SEQ_CTR_SHIFT, \
-	.barrier_mutex = __MUTEX_INITIALIZER(sname##_state.barrier_mutex), \
-	.name = RCU_STATE_NAME(sname), \
-	.abbr = sabbr, \
-	.exp_mutex = __MUTEX_INITIALIZER(sname##_state.exp_mutex), \
-	.exp_wake_mutex = __MUTEX_INITIALIZER(sname##_state.exp_wake_mutex), \
-	.ofl_lock = __SPIN_LOCK_UNLOCKED(sname##_state.ofl_lock), \
-}
-
-RCU_STATE_INITIALIZER(rcu_sched, 's', call_rcu_sched);
-RCU_STATE_INITIALIZER(rcu_bh, 'b', call_rcu_bh);
-
-static struct rcu_state *const rcu_state_p;
-LIST_HEAD(rcu_struct_flavors);
+static DEFINE_PER_CPU_SHARED_ALIGNED(struct rcu_data, rcu_data) = {
+	.dynticks_nesting = 1,
+	.dynticks_nmi_nesting = DYNTICK_IRQ_NONIDLE,
+	.dynticks = ATOMIC_INIT(RCU_DYNTICK_CTRL_CTR),
+};
+static struct rcu_state rcu_state = {
+	.level = { &rcu_state.node[0] },
+	.gp_state = RCU_GP_IDLE,
+	.gp_seq = (0UL - 300UL) << RCU_SEQ_CTR_SHIFT,
+	.barrier_mutex = __MUTEX_INITIALIZER(rcu_state.barrier_mutex),
+	.name = RCU_NAME,
+	.abbr = RCU_ABBR,
+	.exp_mutex = __MUTEX_INITIALIZER(rcu_state.exp_mutex),
+	.exp_wake_mutex = __MUTEX_INITIALIZER(rcu_state.exp_wake_mutex),
+	.ofl_lock = __RAW_SPIN_LOCK_UNLOCKED(rcu_state.ofl_lock),
+};
 
 /* Dump rcu_node combining tree at boot to verify correct setup. */
 static bool dump_tree;
@@ -207,7 +201,7 @@ EXPORT_SYMBOL_GPL(rcu_get_gp_kthreads_prio);
  * held, but the bit corresponding to the current CPU will be stable
  * in most contexts.
  */
-unsigned long rcu_rnp_online_cpus(struct rcu_node *rnp)
+static unsigned long rcu_rnp_online_cpus(struct rcu_node *rnp)
 {
 	return READ_ONCE(rnp->qsmaskinitnext);
 }
@@ -343,7 +337,7 @@ static void rcu_dynticks_eqs_online(void)
  *
  * No ordering, as we are sampling CPU-local information.
  */
-bool rcu_dynticks_curr_cpu_in_eqs(void)
+static bool rcu_dynticks_curr_cpu_in_eqs(void)
 {
 	struct rcu_dynticks *rdtp = this_cpu_ptr(&rcu_dynticks);
 
@@ -354,7 +348,7 @@ bool rcu_dynticks_curr_cpu_in_eqs(void)
  * Snapshot the ->dynticks counter with full ordering so as to allow
  * stable comparison of this counter with past and future snapshots.
  */
-int rcu_dynticks_snap(struct rcu_dynticks *rdtp)
+static int rcu_dynticks_snap(struct rcu_data *rdp)
 {
 	int snap = atomic_add_return(0, &rdtp->dynticks);
 

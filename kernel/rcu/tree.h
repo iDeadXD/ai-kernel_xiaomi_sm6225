@@ -432,18 +432,7 @@ extern struct rcu_state rcu_bh_state;
 extern struct rcu_state rcu_preempt_state;
 #endif /* #ifdef CONFIG_PREEMPT_RCU */
 
-int rcu_dynticks_snap(struct rcu_dynticks *rdtp);
-
-#ifdef CONFIG_RCU_BOOST
-DECLARE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
-DECLARE_PER_CPU(int, rcu_cpu_kthread_cpu);
-DECLARE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
-DECLARE_PER_CPU(char, rcu_cpu_has_work);
-#endif /* #ifdef CONFIG_RCU_BOOST */
-
-#ifndef RCU_TREE_NONCORE
-
-/* Forward declarations for rcutree_plugin.h */
+/* Forward declarations for tree_plugin.h */
 static void rcu_bootup_announce(void);
 static void rcu_preempt_note_context_switch(bool preempt);
 static int rcu_preempt_blocked_readers_cgp(struct rcu_node *rnp);
