@@ -3002,6 +3002,77 @@ static void invoke_rcu_core(void)
 		raise_softirq(RCU_SOFTIRQ);
 }
 
+static void rcu_cpu_kthread_park(unsigned int cpu)
+{
+	per_cpu(rcu_data.rcu_cpu_kthread_status, cpu) = RCU_KTHREAD_OFFCPU;
+}
+
+static int rcu_cpu_kthread_should_run(unsigned int cpu)
+{
+	return __this_cpu_read(rcu_data.rcu_cpu_has_work);
+}
+
+/*
+ * Per-CPU kernel thread that invokes RCU callbacks.  This replaces
+ * the RCU softirq used in configurations of RCU that do not support RCU
+ * priority boosting.
+ */
+static void rcu_cpu_kthread(unsigned int cpu)
+{
+	unsigned int *statusp = this_cpu_ptr(&rcu_data.rcu_cpu_kthread_status);
+	char work, *workp = this_cpu_ptr(&rcu_data.rcu_cpu_has_work);
+	int spincnt;
+
+	trace_rcu_utilization(TPS("Start CPU kthread@rcu_run"));
+	for (spincnt = 0; spincnt < 10; spincnt++) {
+		local_bh_disable();
+		*statusp = RCU_KTHREAD_RUNNING;
+		local_irq_disable();
+		work = *workp;
+		*workp = 0;
+		local_irq_enable();
+		if (work)
+			rcu_core();
+		local_bh_enable();
+		if (*workp == 0) {
+			trace_rcu_utilization(TPS("End CPU kthread@rcu_wait"));
+			*statusp = RCU_KTHREAD_WAITING;
+			return;
+		}
+	}
+	*statusp = RCU_KTHREAD_YIELDING;
+	trace_rcu_utilization(TPS("Start CPU kthread@rcu_yield"));
+	schedule_timeout_interruptible(2);
+	trace_rcu_utilization(TPS("End CPU kthread@rcu_yield"));
+	*statusp = RCU_KTHREAD_WAITING;
+}
+
+static struct smp_hotplug_thread rcu_cpu_thread_spec = {
+	.store			= &rcu_data.rcu_cpu_kthread_task,
+	.thread_should_run	= rcu_cpu_kthread_should_run,
+	.thread_fn		= rcu_cpu_kthread,
+	.thread_comm		= "rcuc/%u",
+	.setup			= rcu_cpu_kthread_setup,
+	.park			= rcu_cpu_kthread_park,
+};
+
+/*
+ * Spawn per-CPU RCU core processing kthreads.
+ */
+static int __init rcu_spawn_core_kthreads(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu)
+		per_cpu(rcu_data.rcu_cpu_has_work, cpu) = 0;
+	if (!IS_ENABLED(CONFIG_RCU_BOOST) && use_softirq)
+		return 0;
+	WARN_ONCE(smpboot_register_percpu_thread(&rcu_cpu_thread_spec),
+		  "%s: Could not start rcuc kthread, OOM is now expected behavior\n", __func__);
+	return 0;
+}
+early_initcall(rcu_spawn_core_kthreads);
+
 /*
  * Handle any core-RCU processing required by a call_rcu() invocation.
  */
