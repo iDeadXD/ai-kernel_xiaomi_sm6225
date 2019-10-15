@@ -598,69 +598,6 @@ unsigned long rcu_exp_batches_completed_sched(void)
 EXPORT_SYMBOL_GPL(rcu_exp_batches_completed_sched);
 
 /*
- * Force a quiescent state.
- */
-void rcu_force_quiescent_state(void)
-{
-	force_quiescent_state(rcu_state_p);
-}
-EXPORT_SYMBOL_GPL(rcu_force_quiescent_state);
-
-/*
- * Force a quiescent state for RCU BH.
- */
-void rcu_bh_force_quiescent_state(void)
-{
-	force_quiescent_state(&rcu_bh_state);
-}
-EXPORT_SYMBOL_GPL(rcu_bh_force_quiescent_state);
-
-/*
- * Force a quiescent state for RCU-sched.
- */
-void rcu_sched_force_quiescent_state(void)
-{
-	force_quiescent_state(&rcu_sched_state);
-}
-EXPORT_SYMBOL_GPL(rcu_sched_force_quiescent_state);
-
-/*
- * Show the state of the grace-period kthreads.
- */
-void show_rcu_gp_kthreads(void)
-{
-	int cpu;
-	struct rcu_data *rdp;
-	struct rcu_node *rnp;
-	struct rcu_state *rsp;
-
-	for_each_rcu_flavor(rsp) {
-		pr_info("%s: wait state: %d ->state: %#lx\n",
-			rsp->name, rsp->gp_state, rsp->gp_kthread->state);
-		rcu_for_each_node_breadth_first(rsp, rnp) {
-			if (ULONG_CMP_GE(rsp->gp_seq, rnp->gp_seq_needed))
-				continue;
-			pr_info("\trcu_node %d:%d ->gp_seq %lu ->gp_seq_needed %lu\n",
-				rnp->grplo, rnp->grphi, rnp->gp_seq,
-				rnp->gp_seq_needed);
-			if (!rcu_is_leaf_node(rnp))
-				continue;
-			for_each_leaf_node_possible_cpu(rnp, cpu) {
-				rdp = per_cpu_ptr(rsp->rda, cpu);
-				if (rdp->gpwrap ||
-				    ULONG_CMP_GE(rsp->gp_seq,
-						 rdp->gp_seq_needed))
-					continue;
-				pr_info("\tcpu %d ->gp_seq_needed %lu\n",
-					cpu, rdp->gp_seq_needed);
-			}
-		}
-		/* sched_show_task(rsp->gp_kthread); */
-	}
-}
-EXPORT_SYMBOL_GPL(show_rcu_gp_kthreads);
-
-/*
  * Send along grace-period-related data for rcutorture diagnostics.
  */
 void rcutorture_get_gp_data(enum rcutorture_type test_type, int *flags,
