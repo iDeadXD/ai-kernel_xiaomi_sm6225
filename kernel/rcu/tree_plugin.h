@@ -492,6 +492,13 @@ static void rcu_read_unlock_special(struct task_struct *t)
 	 * t->rcu_read_unlock_special cannot change.
 	 */
 	special = t->rcu_read_unlock_special;
+	rdp = this_cpu_ptr(&rcu_data);
+	if (!special.s && !rdp->exp_deferred_qs) {
+		local_irq_restore(flags);
+		return;
+	}
+	t->rcu_read_unlock_special.b.exp_hint = false;
+	t->rcu_read_unlock_special.b.deferred_qs = false;
 	if (special.b.need_qs) {
 		rcu_preempt_qs();
 		t->rcu_read_unlock_special.b.need_qs = false;
@@ -611,89 +618,80 @@ static void rcu_print_detail_task_stall_rnp(struct rcu_node *rnp)
 	unsigned long flags;
 	struct task_struct *t;
 
-	raw_spin_lock_irqsave_rcu_node(rnp, flags);
-	if (!rcu_preempt_blocked_readers_cgp(rnp)) {
-		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+	if (!rcu_preempt_need_deferred_qs(t))
+		return;
+	if (couldrecurse)
+		t->rcu_read_lock_nesting -= RCU_NEST_BIAS;
+	local_irq_save(flags);
+	rcu_preempt_deferred_qs_irqrestore(t, flags);
+	if (couldrecurse)
+		t->rcu_read_lock_nesting += RCU_NEST_BIAS;
+}
+
+/*
+ * Minimal handler to give the scheduler a chance to re-evaluate.
+ */
+static void rcu_preempt_deferred_qs_handler(struct irq_work *iwp)
+{
+	struct rcu_data *rdp;
+
+	rdp = container_of(iwp, struct rcu_data, defer_qs_iw);
+	rdp->defer_qs_iw_pending = false;
+}
+
+/*
+ * Handle special cases during rcu_read_unlock(), such as needing to
+ * notify RCU core processing or task having blocked during the RCU
+ * read-side critical section.
+ */
+static void rcu_read_unlock_special(struct task_struct *t)
+{
+	unsigned long flags;
+	bool preempt_bh_were_disabled =
+			!!(preempt_count() & (PREEMPT_MASK | SOFTIRQ_MASK));
+	bool irqs_were_disabled;
+
+	/* NMI handlers cannot block and cannot safely manipulate state. */
+	if (in_nmi())
+		return;
+
+	local_irq_save(flags);
+	irqs_were_disabled = irqs_disabled_flags(flags);
+	if (preempt_bh_were_disabled || irqs_were_disabled) {
+		bool exp;
+		struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
+		struct rcu_node *rnp = rdp->mynode;
+
+		exp = (t->rcu_blocked_node && t->rcu_blocked_node->exp_tasks) ||
+		      (rdp->grpmask & READ_ONCE(rnp->expmask)) ||
+		      tick_nohz_full_cpu(rdp->cpu);
+		// Need to defer quiescent state until everything is enabled.
+		if (irqs_were_disabled && use_softirq &&
+		    (in_interrupt() ||
+		     (exp && !t->rcu_read_unlock_special.b.deferred_qs))) {
+			// Using softirq, safe to awaken, and we get
+			// no help from enabling irqs, unlike bh/preempt.
+			raise_softirq_irqoff(RCU_SOFTIRQ);
+		} else {
+			// Enabling BH or preempt does reschedule, so...
+			// Also if no expediting or NO_HZ_FULL, slow is OK.
+			set_tsk_need_resched(current);
+			set_preempt_need_resched();
+			if (IS_ENABLED(CONFIG_IRQ_WORK) && irqs_were_disabled &&
+			    !rdp->defer_qs_iw_pending && exp) {
+				// Get scheduler to re-evaluate and call hooks.
+				// If !IRQ_WORK, FQS scan will eventually IPI.
+				init_irq_work(&rdp->defer_qs_iw,
+					      rcu_preempt_deferred_qs_handler);
+				rdp->defer_qs_iw_pending = true;
+				irq_work_queue_on(&rdp->defer_qs_iw, rdp->cpu);
+			}
+		}
+		t->rcu_read_unlock_special.b.deferred_qs = true;
+		local_irq_restore(flags);
 		return;
 	}
-	t = list_entry(rnp->gp_tasks->prev,
-		       struct task_struct, rcu_node_entry);
-	list_for_each_entry_continue(t, &rnp->blkd_tasks, rcu_node_entry) {
-		/*
-		 * We could be printing a lot while holding a spinlock.
-		 * Avoid triggering hard lockup.
-		 */
-		touch_nmi_watchdog();
-		sched_show_task(t);
-	}
-	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
-}
-
-/*
- * Dump detailed information for all tasks blocking the current RCU
- * grace period.
- */
-static void rcu_print_detail_task_stall(struct rcu_state *rsp)
-{
-	struct rcu_node *rnp = rcu_get_root(rsp);
-
-	rcu_print_detail_task_stall_rnp(rnp);
-	rcu_for_each_leaf_node(rsp, rnp)
-		rcu_print_detail_task_stall_rnp(rnp);
-}
-
-static void rcu_print_task_stall_begin(struct rcu_node *rnp)
-{
-	pr_err("\tTasks blocked on level-%d rcu_node (CPUs %d-%d):",
-	       rnp->level, rnp->grplo, rnp->grphi);
-}
-
-static void rcu_print_task_stall_end(void)
-{
-	pr_cont("\n");
-}
-
-/*
- * Scan the current list of tasks blocked within RCU read-side critical
- * sections, printing out the tid of each.
- */
-static int rcu_print_task_stall(struct rcu_node *rnp)
-{
-	struct task_struct *t;
-	int ndetected = 0;
-
-	if (!rcu_preempt_blocked_readers_cgp(rnp))
-		return 0;
-	rcu_print_task_stall_begin(rnp);
-	t = list_entry(rnp->gp_tasks->prev,
-		       struct task_struct, rcu_node_entry);
-	list_for_each_entry_continue(t, &rnp->blkd_tasks, rcu_node_entry) {
-		pr_cont(" P%d", t->pid);
-		ndetected++;
-	}
-	rcu_print_task_stall_end();
-	return ndetected;
-}
-
-/*
- * Scan the current list of tasks blocked within RCU read-side critical
- * sections, printing out the tid of each that is blocking the current
- * expedited grace period.
- */
-static int rcu_print_task_exp_stall(struct rcu_node *rnp)
-{
-	struct task_struct *t;
-	int ndetected = 0;
-
-	if (!rnp->exp_tasks)
-		return 0;
-	t = list_entry(rnp->exp_tasks->prev,
-		       struct task_struct, rcu_node_entry);
-	list_for_each_entry_continue(t, &rnp->blkd_tasks, rcu_node_entry) {
-		pr_cont(" P%d", t->pid);
-		ndetected++;
-	}
-	return ndetected;
+	rcu_preempt_deferred_qs_irqrestore(t, flags);
 }
 
 /*
