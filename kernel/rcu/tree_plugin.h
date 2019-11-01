@@ -497,16 +497,9 @@ static void rcu_read_unlock_special(struct task_struct *t)
 		local_irq_restore(flags);
 		return;
 	}
-	t->rcu_read_unlock_special.b.exp_hint = false;
-	t->rcu_read_unlock_special.b.deferred_qs = false;
-	if (special.b.need_qs) {
-		rcu_preempt_qs();
-		t->rcu_read_unlock_special.b.need_qs = false;
-		if (!t->rcu_read_unlock_special.s) {
-			local_irq_restore(flags);
-			return;
-		}
-	}
+	t->rcu_read_unlock_special.s = 0;
+	if (special.b.need_qs)
+		rcu_qs();
 
 	/*
 	 * Respond to a request for an expedited grace period, but only if
@@ -515,16 +508,8 @@ static void rcu_read_unlock_special(struct task_struct *t)
 	 * would have been cleared at the time of the first preemption,
 	 * and the quiescent state would be reported when we were dequeued.
 	 */
-	if (special.b.exp_need_qs) {
-		WARN_ON_ONCE(special.b.blocked);
-		t->rcu_read_unlock_special.b.exp_need_qs = false;
-		rdp = this_cpu_ptr(rcu_state_p->rda);
-		rcu_report_exp_rdp(rcu_state_p, rdp, true);
-		if (!t->rcu_read_unlock_special.s) {
-			local_irq_restore(flags);
-			return;
-		}
-	}
+	if (rdp->exp_deferred_qs)
+		rcu_report_exp_rdp(rdp);
 
 	/* Hardware IRQ handlers cannot block, complain if they get here. */
 	if (preempt_count() & (HARDIRQ_MASK | SOFTIRQ_OFFSET)) {
@@ -541,7 +526,6 @@ static void rcu_read_unlock_special(struct task_struct *t)
 
 	/* Clean up if blocked during RCU read-side critical section. */
 	if (special.b.blocked) {
-		t->rcu_read_unlock_special.b.blocked = false;
 
 		/*
 		 * Remove this task from the list it blocked on.  The task
