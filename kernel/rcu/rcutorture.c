@@ -1134,7 +1134,18 @@ rcu_torture_writer(void *arg)
 				       !rcu_gp_is_normal();
 		}
 		rcu_torture_writer_state = RTWS_STUTTER;
-		stutter_wait("rcu_torture_writer");
+		if (stutter_wait("rcu_torture_writer") &&
+		    !READ_ONCE(rcu_fwd_cb_nodelay) &&
+		    !cur_ops->slow_gps &&
+		    !torture_must_stop() &&
+		    rcu_inkernel_boot_has_ended())
+			for (i = 0; i < ARRAY_SIZE(rcu_tortures); i++)
+				if (list_empty(&rcu_tortures[i].rtort_free) &&
+				    rcu_access_pointer(rcu_torture_current) !=
+				    &rcu_tortures[i]) {
+					rcu_ftrace_dump(DUMP_ALL);
+					WARN(1, "%s: rtort_pipe_count: %d\n", __func__, rcu_tortures[i].rtort_pipe_count);
+				}
 	} while (!torture_must_stop());
 	/* Reset expediting back to unexpedited. */
 	if (expediting > 0)
