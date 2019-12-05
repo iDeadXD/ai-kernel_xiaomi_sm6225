@@ -215,10 +215,22 @@ static inline void debug_rcu_head_unqueue(struct rcu_head *head)
 }
 #endif	/* #else !CONFIG_DEBUG_OBJECTS_RCU_HEAD */
 
+extern int rcu_cpu_stall_suppress_at_boot;
+
+static inline bool rcu_stall_is_suppressed_at_boot(void)
+{
+	return rcu_cpu_stall_suppress_at_boot && !rcu_inkernel_boot_has_ended();
+}
+
 #ifdef CONFIG_RCU_STALL_COMMON
 
 extern int rcu_cpu_stall_suppress;
 int rcu_jiffies_till_stall_check(void);
+
+static inline bool rcu_stall_is_suppressed(void)
+{
+	return rcu_stall_is_suppressed_at_boot() || rcu_cpu_stall_suppress;
+}
 
 #define rcu_ftrace_dump_stall_suppress() \
 do { \
@@ -233,6 +245,11 @@ do { \
 } while (0)
 
 #else /* #endif #ifdef CONFIG_RCU_STALL_COMMON */
+
+static inline bool rcu_stall_is_suppressed(void)
+{
+	return rcu_stall_is_suppressed_at_boot();
+}
 #define rcu_ftrace_dump_stall_suppress()
 #define rcu_ftrace_dump_stall_unsuppress()
 #endif /* #ifdef CONFIG_RCU_STALL_COMMON */

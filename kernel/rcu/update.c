@@ -462,7 +462,10 @@ EXPORT_SYMBOL_GPL(do_trace_rcu_torture_read);
 #define RCU_STALL_DELAY_DELTA	       0
 #endif
 
-int rcu_cpu_stall_suppress __read_mostly; /* 1 = suppress stall warnings. */
+#ifdef CONFIG_RCU_STALL_COMMON
+int rcu_cpu_stall_ftrace_dump __read_mostly;
+module_param(rcu_cpu_stall_ftrace_dump, int, 0644);
+int rcu_cpu_stall_suppress __read_mostly; // !0 = suppress stall warnings.
 EXPORT_SYMBOL_GPL(rcu_cpu_stall_suppress);
 static int rcu_cpu_stall_timeout __read_mostly = CONFIG_RCU_CPU_STALL_TIMEOUT;
 
@@ -517,6 +520,12 @@ static int __init check_cpu_stall_init(void)
 early_initcall(check_cpu_stall_init);
 
 #endif /* #ifdef CONFIG_RCU_STALL_COMMON */
+
+// Suppress boot-time RCU CPU stall warnings and rcutorture writer stall
+// warnings.  Also used by rcutorture even if stall warnings are excluded.
+int rcu_cpu_stall_suppress_at_boot __read_mostly; // !0 = suppress boot stalls.
+EXPORT_SYMBOL_GPL(rcu_cpu_stall_suppress_at_boot);
+module_param(rcu_cpu_stall_suppress_at_boot, int, 0444);
 
 #ifdef CONFIG_TASKS_RCU
 
