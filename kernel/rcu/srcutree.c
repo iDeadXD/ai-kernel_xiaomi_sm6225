@@ -551,14 +551,14 @@ static void srcu_gp_end(struct srcu_struct *sp)
 	spin_lock_irq_rcu_node(sp);
 	idx = rcu_seq_state(sp->srcu_gp_seq);
 	WARN_ON_ONCE(idx != SRCU_STATE_SCAN2);
-	cbdelay = srcu_get_delay(sp);
-	sp->srcu_last_gp_end = ktime_get_mono_fast_ns();
-	rcu_seq_end(&sp->srcu_gp_seq);
-	gpseq = rcu_seq_current(&sp->srcu_gp_seq);
-	if (ULONG_CMP_LT(sp->srcu_gp_seq_needed_exp, gpseq))
-		sp->srcu_gp_seq_needed_exp = gpseq;
-	spin_unlock_irq_rcu_node(sp);
-	mutex_unlock(&sp->srcu_gp_mutex);
+	cbdelay = srcu_get_delay(ssp);
+	WRITE_ONCE(ssp->srcu_last_gp_end, ktime_get_mono_fast_ns());
+	rcu_seq_end(&ssp->srcu_gp_seq);
+	gpseq = rcu_seq_current(&ssp->srcu_gp_seq);
+	if (ULONG_CMP_LT(ssp->srcu_gp_seq_needed_exp, gpseq))
+		WRITE_ONCE(ssp->srcu_gp_seq_needed_exp, gpseq);
+	spin_unlock_irq_rcu_node(ssp);
+	mutex_unlock(&ssp->srcu_gp_mutex);
 	/* A new grace period can start at this point.  But only one. */
 
 	/* Initiate callback invocation as needed. */
@@ -634,10 +634,10 @@ static void srcu_funnel_exp_start(struct srcu_struct *sp, struct srcu_node *snp,
 		WRITE_ONCE(snp->srcu_gp_seq_needed_exp, s);
 		spin_unlock_irqrestore_rcu_node(snp, flags);
 	}
-	spin_lock_irqsave_rcu_node(sp, flags);
-	if (ULONG_CMP_LT(sp->srcu_gp_seq_needed_exp, s))
-		sp->srcu_gp_seq_needed_exp = s;
-	spin_unlock_irqrestore_rcu_node(sp, flags);
+	spin_lock_irqsave_rcu_node(ssp, flags);
+	if (ULONG_CMP_LT(ssp->srcu_gp_seq_needed_exp, s))
+		WRITE_ONCE(ssp->srcu_gp_seq_needed_exp, s);
+	spin_unlock_irqrestore_rcu_node(ssp, flags);
 }
 
 /*
@@ -695,8 +695,8 @@ static void srcu_funnel_gp_start(struct srcu_struct *sp, struct srcu_data *sdp,
 		 */
 		smp_store_release(&sp->srcu_gp_seq_needed, s); /*^^^*/
 	}
-	if (!do_norm && ULONG_CMP_LT(sp->srcu_gp_seq_needed_exp, s))
-		sp->srcu_gp_seq_needed_exp = s;
+	if (!do_norm && ULONG_CMP_LT(ssp->srcu_gp_seq_needed_exp, s))
+		WRITE_ONCE(ssp->srcu_gp_seq_needed_exp, s);
 
 	/* If grace period not already done and none in progress, start it. */
 	if (!rcu_seq_done(&sp->srcu_gp_seq, s) &&
