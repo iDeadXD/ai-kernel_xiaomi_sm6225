@@ -3982,7 +3982,7 @@ void rcu_cpu_starting(unsigned int cpu)
 	rnp = rdp->mynode;
 	mask = rdp->grpmask;
 	raw_spin_lock_irqsave_rcu_node(rnp, flags);
-	rnp->qsmaskinitnext |= mask;
+	WRITE_ONCE(rnp->qsmaskinitnext, rnp->qsmaskinitnext | mask);
 	oldmask = rnp->expmaskinitnext;
 	rnp->expmaskinitnext |= mask;
 	oldmask ^= rnp->expmaskinitnext;
@@ -4048,8 +4048,22 @@ void rcu_report_dead(unsigned int cpu)
 	rcu_report_exp_rdp(&rcu_sched_state,
 			   this_cpu_ptr(rcu_sched_state.rda), true);
 	preempt_enable();
-	for_each_rcu_flavor(rsp)
-		rcu_cleanup_dying_idle_cpu(cpu, rsp);
+	rcu_preempt_deferred_qs(current);
+
+	/* Remove outgoing CPU from mask in the leaf rcu_node structure. */
+	mask = rdp->grpmask;
+	raw_spin_lock(&rcu_state.ofl_lock);
+	raw_spin_lock_irqsave_rcu_node(rnp, flags); /* Enforce GP memory-order guarantee. */
+	rdp->rcu_ofl_gp_seq = READ_ONCE(rcu_state.gp_seq);
+	rdp->rcu_ofl_gp_flags = READ_ONCE(rcu_state.gp_flags);
+	if (rnp->qsmask & mask) { /* RCU waiting on outgoing CPU? */
+		/* Report quiescent state -before- changing ->qsmaskinitnext! */
+		rcu_report_qs_rnp(mask, rnp, rnp->gp_seq, flags);
+		raw_spin_lock_irqsave_rcu_node(rnp, flags);
+	}
+	WRITE_ONCE(rnp->qsmaskinitnext, rnp->qsmaskinitnext & ~mask);
+	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+	raw_spin_unlock(&rcu_state.ofl_lock);
 
 	per_cpu(rcu_cpu_started, cpu) = 0;
 }
