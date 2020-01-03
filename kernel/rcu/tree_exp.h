@@ -160,7 +160,7 @@ static void __maybe_unused sync_exp_reset_tree(struct rcu_state *rsp)
 static bool sync_rcu_exp_done(struct rcu_node *rnp)
 {
 	raw_lockdep_assert_held_rcu_node(rnp);
-	return rnp->exp_tasks == NULL &&
+	return READ_ONCE(rnp->exp_tasks) == NULL &&
 	       READ_ONCE(rnp->expmask) == 0;
 }
 
@@ -427,7 +427,7 @@ static void sync_rcu_exp_select_node_cpus(struct work_struct *wp)
 	 * until such time as the ->expmask bits are cleared.
 	 */
 	if (rcu_preempt_has_tasks(rnp))
-		rnp->exp_tasks = rnp->blkd_tasks.next;
+		WRITE_ONCE(rnp->exp_tasks, rnp->blkd_tasks.next);
 	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 
 	/* IPI the remaining CPUs for expedited quiescent state. */
@@ -601,8 +601,9 @@ static void synchronize_rcu_expedited_wait(void)
 			}
 		}
 		pr_cont(" } %lu jiffies s: %lu root: %#lx/%c\n",
-			jiffies - jiffies_start, rsp->expedited_sequence,
-			rnp_root->expmask, ".T"[!!rnp_root->exp_tasks]);
+			jiffies - jiffies_start, rcu_state.expedited_sequence,
+			data_race(rnp_root->expmask),
+			".T"[!!data_race(rnp_root->exp_tasks)]);
 		if (ndetected) {
 			pr_err("blocking rcu_node structures:");
 			rcu_for_each_node_breadth_first(rsp, rnp) {
@@ -612,8 +613,8 @@ static void synchronize_rcu_expedited_wait(void)
 					continue;
 				pr_cont(" l=%u:%d-%d:%#lx/%c",
 					rnp->level, rnp->grplo, rnp->grphi,
-					rnp->expmask,
-					".T"[!!rnp->exp_tasks]);
+					data_race(rnp->expmask),
+					".T"[!!data_race(rnp->exp_tasks)]);
 			}
 			pr_cont("\n");
 		}
@@ -847,6 +848,109 @@ static void sync_rcu_exp_handler(void *info)
 		set_preempt_need_resched();
 	}
 }
+
+/* PREEMPT=y, so no PREEMPT=n expedited grace period to clean up after. */
+static void sync_sched_exp_online_cleanup(int cpu)
+{
+}
+
+/*
+ * Scan the current list of tasks blocked within RCU read-side critical
+ * sections, printing out the tid of each that is blocking the current
+ * expedited grace period.
+ */
+static int rcu_print_task_exp_stall(struct rcu_node *rnp)
+{
+	unsigned long flags;
+	int ndetected = 0;
+	struct task_struct *t;
+
+	if (!READ_ONCE(rnp->exp_tasks))
+		return 0;
+	raw_spin_lock_irqsave_rcu_node(rnp, flags);
+	t = list_entry(rnp->exp_tasks->prev,
+		       struct task_struct, rcu_node_entry);
+	list_for_each_entry_continue(t, &rnp->blkd_tasks, rcu_node_entry) {
+		pr_cont(" P%d", t->pid);
+		ndetected++;
+	}
+	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+	return ndetected;
+}
+
+#else /* #ifdef CONFIG_PREEMPT_RCU */
+
+/* Request an expedited quiescent state. */
+static void rcu_exp_need_qs(void)
+{
+	__this_cpu_write(rcu_data.cpu_no_qs.b.exp, true);
+	/* Store .exp before .rcu_urgent_qs. */
+	smp_store_release(this_cpu_ptr(&rcu_data.rcu_urgent_qs), true);
+	set_tsk_need_resched(current);
+	set_preempt_need_resched();
+}
+
+/* Invoked on each online non-idle CPU for expedited quiescent state. */
+static void rcu_exp_handler(void *unused)
+{
+	struct rcu_data *rdp;
+	struct rcu_node *rnp;
+
+	rdp = this_cpu_ptr(&rcu_data);
+	rnp = rdp->mynode;
+	if (!(READ_ONCE(rnp->expmask) & rdp->grpmask) ||
+	    __this_cpu_read(rcu_data.cpu_no_qs.b.exp))
+		return;
+	if (rcu_is_cpu_rrupt_from_idle()) {
+		rcu_report_exp_rdp(this_cpu_ptr(&rcu_data));
+		return;
+	}
+	rcu_exp_need_qs();
+}
+
+/* Send IPI for expedited cleanup if needed at end of CPU-hotplug operation. */
+static void sync_sched_exp_online_cleanup(int cpu)
+{
+	unsigned long flags;
+	int my_cpu;
+	struct rcu_data *rdp;
+	int ret;
+	struct rcu_node *rnp;
+
+	rdp = per_cpu_ptr(&rcu_data, cpu);
+	rnp = rdp->mynode;
+	my_cpu = get_cpu();
+	/* Quiescent state either not needed or already requested, leave. */
+	if (!(READ_ONCE(rnp->expmask) & rdp->grpmask) ||
+	    __this_cpu_read(rcu_data.cpu_no_qs.b.exp)) {
+		put_cpu();
+		return;
+	}
+	/* Quiescent state needed on current CPU, so set it up locally. */
+	if (my_cpu == cpu) {
+		local_irq_save(flags);
+		rcu_exp_need_qs();
+		local_irq_restore(flags);
+		put_cpu();
+		return;
+	}
+	/* Quiescent state needed on some other CPU, send IPI. */
+	ret = smp_call_function_single(cpu, rcu_exp_handler, NULL, 0);
+	put_cpu();
+	WARN_ON_ONCE(ret);
+}
+
+/*
+ * Because preemptible RCU does not exist, we never have to check for
+ * tasks blocked within RCU read-side critical sections that are
+ * blocking the current expedited grace period.
+ */
+static int rcu_print_task_exp_stall(struct rcu_node *rnp)
+{
+	return 0;
+}
+
+#endif /* #else #ifdef CONFIG_PREEMPT_RCU */
 
 /**
  * synchronize_rcu_expedited - Brute-force RCU grace period
