@@ -1293,9 +1293,9 @@ void srcu_torture_stats_print(struct srcu_struct *sp, char *tt, char *tf)
 		long c0, c1;
 		struct srcu_data *sdp;
 
-		sdp = per_cpu_ptr(sp->sda, cpu);
-		u0 = sdp->srcu_unlock_count[!idx];
-		u1 = sdp->srcu_unlock_count[idx];
+		sdp = per_cpu_ptr(ssp->sda, cpu);
+		u0 = data_race(sdp->srcu_unlock_count[!idx]);
+		u1 = data_race(sdp->srcu_unlock_count[idx]);
 
 		/*
 		 * Make sure that a lock is always counted if the corresponding
@@ -1303,8 +1303,8 @@ void srcu_torture_stats_print(struct srcu_struct *sp, char *tt, char *tf)
 		 */
 		smp_rmb();
 
-		l0 = sdp->srcu_lock_count[!idx];
-		l1 = sdp->srcu_lock_count[idx];
+		l0 = data_race(sdp->srcu_lock_count[!idx]);
+		l1 = data_race(sdp->srcu_lock_count[idx]);
 
 		c0 = l0 - u0;
 		c1 = l1 - u1;
