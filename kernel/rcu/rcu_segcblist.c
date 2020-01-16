@@ -380,10 +380,8 @@ void rcu_segcblist_insert_pend_cbs(struct rcu_segcblist *rsclp,
 {
 	if (!rclp->head)
 		return; /* Nothing to do. */
-	*rsclp->tails[RCU_NEXT_TAIL] = rclp->head;
-	rsclp->tails[RCU_NEXT_TAIL] = rclp->tail;
-	rclp->head = NULL;
-	rclp->tail = &rclp->head;
+	WRITE_ONCE(*rsclp->tails[RCU_NEXT_TAIL], rclp->head);
+	WRITE_ONCE(rsclp->tails[RCU_NEXT_TAIL], rclp->tail);
 }
 
 /*
