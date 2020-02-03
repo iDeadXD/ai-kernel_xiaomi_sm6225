@@ -395,18 +395,21 @@ bool rcu_eqs_special_set(int cpu)
 {
 	int old;
 	int new;
-	struct rcu_dynticks *rdtp = &per_cpu(rcu_dynticks, cpu);
+	int new_old;
+	struct rcu_data *rdp = &per_cpu(rcu_data, cpu);
 
+	new_old = atomic_read(&rdp->dynticks);
 	do {
+<<<<<<< HEAD
 		old = atomic_read(&rdtp->dynticks);
 		if (old & RCU_DYNTICK_CTRL_CTR)
 			return false;
-		new = old | RCU_DYNTICK_CTRL_MASK;
-	} while (atomic_cmpxchg(&rdtp->dynticks, old, new) != old);
+		new_old = atomic_cmpxchg(&rdp->dynticks, old, new);
+	} while (new_old != old);
+>>>>>>> df84e4d09c29 (rcu: Optimize and protect atomic_cmpxchg() loop)
 	return true;
 }
 
-/*
  * Let the RCU core know that this CPU has gone through the scheduler,
  * which is a quiescent state.  This is called when the need for a
  * quiescent state is urgent, so we burn an atomic operation and full
@@ -4152,8 +4155,6 @@ static int __init rcu_spawn_gp_kthread(void)
 		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 		wake_up_process(t);
 	}
-<<<<<<< HEAD
-=======
 	rnp = rcu_get_root();
 	raw_spin_lock_irqsave_rcu_node(rnp, flags);
 	WRITE_ONCE(rcu_state.gp_activity, jiffies);
@@ -4162,7 +4163,6 @@ static int __init rcu_spawn_gp_kthread(void)
 	smp_store_release(&rcu_state.gp_kthread, t);  /* ^^^ */
 	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
 	wake_up_process(t);
->>>>>>> 84123015db06 (rcu: Don't flag non-starting GPs before GP kthread is running)
 	rcu_spawn_nocb_kthreads();
 	rcu_spawn_boost_kthreads();
 	return 0;
