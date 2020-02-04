@@ -2199,29 +2199,90 @@ static void __call_rcu_nocb_enqueue(struct rcu_data *rdp,
 static bool __call_rcu_nocb(struct rcu_data *rdp, struct rcu_head *rhp,
 			    bool lazy, unsigned long flags)
 {
-
-	if (!rcu_is_nocb_cpu(rdp->cpu))
-		return false;
-	__call_rcu_nocb_enqueue(rdp, rhp, &rhp->next, 1, lazy, flags);
-	if (__is_kfree_rcu_offset((unsigned long)rhp->func))
-		trace_rcu_kfree_callback(rdp->rsp->name, rhp,
-					 (unsigned long)rhp->func,
-					 -atomic_long_read(&rdp->nocb_q_count_lazy),
-					 -atomic_long_read(&rdp->nocb_q_count));
-	else
-		trace_rcu_callback(rdp->rsp->name, rhp,
-				   -atomic_long_read(&rdp->nocb_q_count_lazy),
-				   -atomic_long_read(&rdp->nocb_q_count));
+	bool bypass = false;
+	long bypass_ncbs;
+	int __maybe_unused cpu = my_rdp->cpu;
+	unsigned long cur_gp_seq;
+	unsigned long flags;
+	bool gotcbs = false;
+	unsigned long j = jiffies;
+	bool needwait_gp = false; // This prevents actual uninitialized use.
+	bool needwake;
+	bool needwake_gp;
+	struct rcu_data *rdp;
+	struct rcu_node *rnp;
+	unsigned long wait_gp_seq = 0; // Suppress "use uninitialized" warning.
+	bool wasempty = false;
 
 	/*
 	 * If called from an extended quiescent state with interrupts
 	 * disabled, invoke the RCU core in order to allow the idle-entry
 	 * deferred-wakeup check to function.
 	 */
-	if (irqs_disabled_flags(flags) &&
-	    !rcu_is_watching() &&
-	    cpu_online(smp_processor_id()))
-		invoke_rcu_core();
+	for (rdp = my_rdp; rdp; rdp = rdp->nocb_next_cb_rdp) {
+		trace_rcu_nocb_wake(rcu_state.name, rdp->cpu, TPS("Check"));
+		rcu_nocb_lock_irqsave(rdp, flags);
+		bypass_ncbs = rcu_cblist_n_cbs(&rdp->nocb_bypass);
+		if (bypass_ncbs &&
+		    (time_after(j, READ_ONCE(rdp->nocb_bypass_first) + 1) ||
+		     bypass_ncbs > 2 * qhimark)) {
+			// Bypass full or old, so flush it.
+			(void)rcu_nocb_try_flush_bypass(rdp, j);
+			bypass_ncbs = rcu_cblist_n_cbs(&rdp->nocb_bypass);
+		} else if (!bypass_ncbs && rcu_segcblist_empty(&rdp->cblist)) {
+			rcu_nocb_unlock_irqrestore(rdp, flags);
+			continue; /* No callbacks here, try next. */
+		}
+		if (bypass_ncbs) {
+			trace_rcu_nocb_wake(rcu_state.name, rdp->cpu,
+					    TPS("Bypass"));
+			bypass = true;
+		}
+		rnp = rdp->mynode;
+		if (bypass) {  // Avoid race with first bypass CB.
+			WRITE_ONCE(my_rdp->nocb_defer_wakeup,
+				   RCU_NOCB_WAKE_NOT);
+			del_timer(&my_rdp->nocb_timer);
+		}
+		// Advance callbacks if helpful and low contention.
+		needwake_gp = false;
+		if (!rcu_segcblist_restempty(&rdp->cblist,
+					     RCU_NEXT_READY_TAIL) ||
+		    (rcu_segcblist_nextgp(&rdp->cblist, &cur_gp_seq) &&
+		     rcu_seq_done(&rnp->gp_seq, cur_gp_seq))) {
+			raw_spin_lock_rcu_node(rnp); /* irqs disabled. */
+			needwake_gp = rcu_advance_cbs(rnp, rdp);
+			wasempty = rcu_segcblist_restempty(&rdp->cblist,
+							   RCU_NEXT_READY_TAIL);
+			raw_spin_unlock_rcu_node(rnp); /* irqs disabled. */
+		}
+		// Need to wait on some grace period?
+		WARN_ON_ONCE(wasempty &&
+			     !rcu_segcblist_restempty(&rdp->cblist,
+						      RCU_NEXT_READY_TAIL));
+		if (rcu_segcblist_nextgp(&rdp->cblist, &cur_gp_seq)) {
+			if (!needwait_gp ||
+			    ULONG_CMP_LT(cur_gp_seq, wait_gp_seq))
+				wait_gp_seq = cur_gp_seq;
+			needwait_gp = true;
+			trace_rcu_nocb_wake(rcu_state.name, rdp->cpu,
+					    TPS("NeedWaitGP"));
+		}
+		if (rcu_segcblist_ready_cbs(&rdp->cblist)) {
+			needwake = rdp->nocb_cb_sleep;
+			WRITE_ONCE(rdp->nocb_cb_sleep, false);
+			smp_mb(); /* CB invocation -after- GP end. */
+		} else {
+			needwake = false;
+		}
+		rcu_nocb_unlock_irqrestore(rdp, flags);
+		if (needwake) {
+			swake_up_one(&rdp->nocb_cb_wq);
+			gotcbs = true;
+		}
+		if (needwake_gp)
+			rcu_gp_kthread_wake();
+	}
 
 	return true;
 }
