@@ -749,6 +749,74 @@ static struct rcu_torture_ops tasks_ops = {
 	.name		= "tasks"
 };
 
+/*
+ * Definitions for trivial CONFIG_PREEMPT=n-only torture testing.
+ * This implementation does not necessarily work well with CPU hotplug.
+ */
+
+static void synchronize_rcu_trivial(void)
+{
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		rcutorture_sched_setaffinity(current->pid, cpumask_of(cpu));
+		WARN_ON_ONCE(raw_smp_processor_id() != cpu);
+	}
+}
+
+static int rcu_torture_read_lock_trivial(void) __acquires(RCU)
+{
+	preempt_disable();
+	return 0;
+}
+
+static void rcu_torture_read_unlock_trivial(int idx) __releases(RCU)
+{
+	preempt_enable();
+}
+
+static struct rcu_torture_ops trivial_ops = {
+	.ttype		= RCU_TRIVIAL_FLAVOR,
+	.init		= rcu_sync_torture_init,
+	.readlock	= rcu_torture_read_lock_trivial,
+	.read_delay	= rcu_read_delay,  /* just reuse rcu's version. */
+	.readunlock	= rcu_torture_read_unlock_trivial,
+	.get_gp_seq	= rcu_no_completed,
+	.sync		= synchronize_rcu_trivial,
+	.exp_sync	= synchronize_rcu_trivial,
+	.fqs		= NULL,
+	.stats		= NULL,
+	.irq_capable	= 1,
+	.name		= "trivial"
+};
+
+/*
+ * Definitions for rude RCU-tasks torture testing.
+ */
+
+static void rcu_tasks_rude_torture_deferred_free(struct rcu_torture *p)
+{
+	call_rcu_tasks_rude(&p->rtort_rcu, rcu_torture_cb);
+}
+
+static struct rcu_torture_ops tasks_rude_ops = {
+	.ttype		= RCU_TASKS_RUDE_FLAVOR,
+	.init		= rcu_sync_torture_init,
+	.readlock	= rcu_torture_read_lock_trivial,
+	.read_delay	= rcu_read_delay,  /* just reuse rcu's version. */
+	.readunlock	= rcu_torture_read_unlock_trivial,
+	.get_gp_seq	= rcu_no_completed,
+	.deferred_free	= rcu_tasks_rude_torture_deferred_free,
+	.sync		= synchronize_rcu_tasks_rude,
+	.exp_sync	= synchronize_rcu_tasks_rude,
+	.call		= call_rcu_tasks_rude,
+	.cb_barrier	= rcu_barrier_tasks_rude,
+	.fqs		= NULL,
+	.stats		= NULL,
+	.irq_capable	= 1,
+	.name		= "tasks-rude"
+};
+
 static unsigned long rcutorture_seq_diff(unsigned long new, unsigned long old)
 {
 	if (!cur_ops->gp_diff)
@@ -758,7 +826,7 @@ static unsigned long rcutorture_seq_diff(unsigned long new, unsigned long old)
 
 static bool __maybe_unused torturing_tasks(void)
 {
-	return cur_ops == &tasks_ops;
+	return cur_ops == &tasks_ops || cur_ops == &tasks_rude_ops;
 }
 
 /*
@@ -2425,8 +2493,8 @@ rcu_torture_init(void)
 	int cpu;
 	int firsterr = 0;
 	static struct rcu_torture_ops *torture_ops[] = {
-		&rcu_ops, &rcu_bh_ops, &rcu_busted_ops, &srcu_ops, &srcud_ops,
-		&busted_srcud_ops, &sched_ops, &tasks_ops,
+		&rcu_ops, &rcu_busted_ops, &srcu_ops, &srcud_ops,
+		&busted_srcud_ops, &tasks_ops, &tasks_rude_ops, &trivial_ops,
 	};
 
 	if (!torture_init_begin(torture_type, verbose))
