@@ -162,6 +162,29 @@ int nvt_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int co
 static int32_t nvt_ts_resume(struct device *dev);
 static int32_t nvt_ts_suspend(struct device *dev);
 
+#ifdef CONFIG_TP_COMMON
+static ssize_t double_tap_show(struct kobject *kobj,
+                               struct kobj_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", ts->is_gesture_mode);
+}
+static ssize_t double_tap_store(struct kobject *kobj,
+                                struct kobj_attribute *attr, const char *buf,
+                                size_t count)
+{
+    int rc, val;
+    rc = kstrtoint(buf, 10, &val);
+    if (rc)
+    return -EINVAL;
+    lct_nvt_tp_gesture_callback(!!val);
+    return count;
+}
+static struct tp_common_ops double_tap_ops = {
+    .show = double_tap_show,
+    .store = double_tap_store
+};
+#endif
+
 /*2019.12.6 longcheer taocheng add charger mode begin*/
 /*function description*/
 #if NVT_USB_PLUGIN
