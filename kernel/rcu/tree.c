@@ -940,7 +940,7 @@ void rcu_nmi_enter(void)
 	if (rcu_dynticks_curr_cpu_in_eqs()) {
 		rcu_dynticks_eqs_exit();
 		incby = 1;
-	} else if (tick_nohz_full_cpu(rdp->cpu) &&
+	} else if (irq && tick_nohz_full_cpu(rdp->cpu) &&
 		   rdp->dynticks_nmi_nesting == DYNTICK_IRQ_NONIDLE &&
 		   READ_ONCE(rdp->rcu_urgent_qs) &&
 		   !READ_ONCE(rdp->rcu_forced_tick)) {
