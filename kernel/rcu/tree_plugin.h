@@ -384,7 +384,12 @@ static void rcu_preempt_note_context_switch(bool preempt)
 	 * grace period, then the fact that the task has been enqueued
 	 * means that we continue to block the current grace period.
 	 */
-	rcu_preempt_qs();
+	rcu_qs();
+	if (rdp->exp_deferred_qs)
+		rcu_report_exp_rdp(rdp);
+	if (!preempt)
+		rcu_tasks_qs(current);
+	trace_rcu_utilization(TPS("End context switch"));
 }
 
 /*
