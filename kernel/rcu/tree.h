@@ -469,6 +469,8 @@ static void rcu_bind_gp_kthread(void);
 static bool rcu_nohz_full_cpu(struct rcu_state *rsp);
 static void rcu_dynticks_task_enter(void);
 static void rcu_dynticks_task_exit(void);
+static void rcu_dynticks_task_trace_enter(void);
+static void rcu_dynticks_task_trace_exit(void);
 
 #ifdef CONFIG_SRCU
 void srcu_online_cpu(unsigned int cpu);
