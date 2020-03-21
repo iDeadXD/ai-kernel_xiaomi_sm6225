@@ -552,7 +552,9 @@ static void print_lock_name(struct lock_class *class)
 
 	printk(KERN_CONT " (");
 	__print_lock_name(class);
-	printk(KERN_CONT "){%s}", usage);
+	printk(KERN_CONT "){%s}-{%hd:%hd}", usage,
+			class->wait_type_outer ?: class->wait_type_inner,
+			class->wait_type_inner);
 }
 
 static void print_lockdep_cache(struct lockdep_map *lock)
@@ -825,6 +827,8 @@ register_lock_class(struct lockdep_map *lock, unsigned int subclass, int force)
 	INIT_LIST_HEAD(&class->locks_before);
 	INIT_LIST_HEAD(&class->locks_after);
 	class->name_version = count_matching_names(class);
+	class->wait_type_inner = lock->wait_type_inner;
+	class->wait_type_outer = lock->wait_type_outer;
 	/*
 	 * We use RCU's safe list-add method to make
 	 * parallel walking of the hash-list safe:
@@ -3193,8 +3197,9 @@ static int mark_lock(struct task_struct *curr, struct held_lock *this,
 /*
  * Initialize a lock instance's lock-class mapping info:
  */
-static void __lockdep_init_map(struct lockdep_map *lock, const char *name,
-		      struct lock_class_key *key, int subclass)
+void lockdep_init_map_waits(struct lockdep_map *lock, const char *name,
+			      struct lock_class_key *key, int subclass,
+			      short inner, short outer)
 {
 	int i;
 
@@ -3214,6 +3219,9 @@ static void __lockdep_init_map(struct lockdep_map *lock, const char *name,
 	}
 
 	lock->name = name;
+
+	lock->wait_type_outer = outer;
+	lock->wait_type_inner = inner;
 
 	/*
 	 * No key, no joy, we need to hash something.
@@ -3254,13 +3262,7 @@ static void __lockdep_init_map(struct lockdep_map *lock, const char *name,
 		raw_local_irq_restore(flags);
 	}
 }
-
-void lockdep_init_map(struct lockdep_map *lock, const char *name,
-		      struct lock_class_key *key, int subclass)
-{
-	__lockdep_init_map(lock, name, key, subclass);
-}
-EXPORT_SYMBOL_GPL(lockdep_init_map);
+EXPORT_SYMBOL_GPL(lockdep_init_map_waits);
 
 struct lock_class_key __lockdep_no_validate__;
 EXPORT_SYMBOL_GPL(__lockdep_no_validate__);
@@ -3649,7 +3651,9 @@ __lock_set_class(struct lockdep_map *lock, const char *name,
 	if (!hlock)
 		return print_unlock_imbalance_bug(curr, lock, ip);
 
-	lockdep_init_map(lock, name, key, 0);
+	lockdep_init_map_waits(lock, name, key, 0,
+			       lock->wait_type_inner,
+			       lock->wait_type_outer);
 	class = register_lock_class(lock, subclass, 0);
 	if (!class)
 		return 0;
