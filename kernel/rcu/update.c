@@ -107,6 +107,23 @@ module_param(rcu_normal_after_boot, int, 0);
  * Similarly, we avoid claiming an SRCU read lock held if the current
  * CPU is offline.
  */
+static bool rcu_read_lock_held_common(bool *ret)
+{
+	if (!debug_lockdep_rcu_enabled()) {
+		*ret = true;
+		return true;
+	}
+	if (!rcu_is_watching()) {
+		*ret = false;
+		return true;
+	}
+	if (!rcu_lockdep_current_cpu_online()) {
+		*ret = false;
+		return true;
+	}
+	return false;
+}
+
 int rcu_read_lock_sched_held(void)
 {
 	int lockdep_opinion = 0;
