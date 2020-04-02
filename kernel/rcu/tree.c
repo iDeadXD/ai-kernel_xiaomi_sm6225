@@ -1989,6 +1989,31 @@ static void rcu_gp_slow(struct rcu_state *rsp, int delay)
 		schedule_timeout_uninterruptible(delay);
 }
 
+static unsigned long sleep_duration;
+
+/* Allow rcutorture to stall the grace-period kthread. */
+void rcu_gp_set_torture_wait(int duration)
+{
+	if (IS_ENABLED(CONFIG_RCU_TORTURE_TEST) && duration > 0)
+		WRITE_ONCE(sleep_duration, duration);
+}
+EXPORT_SYMBOL_GPL(rcu_gp_set_torture_wait);
+
+/* Actually implement the aforementioned wait. */
+static void rcu_gp_torture_wait(void)
+{
+	unsigned long duration;
+
+	if (!IS_ENABLED(CONFIG_RCU_TORTURE_TEST))
+		return;
+	duration = xchg(&sleep_duration, 0UL);
+	if (duration > 0) {
+		pr_alert("%s: Waiting %lu jiffies\n", __func__, duration);
+		schedule_timeout_uninterruptible(duration);
+		pr_alert("%s: Wait complete\n", __func__);
+	}
+}
+
 /*
  * Initialize a new grace period.  Return false if no grace period required.
  */
@@ -2196,6 +2221,7 @@ static void rcu_gp_fqs_loop(void)
 		rcu_state.gp_state = RCU_GP_WAIT_FQS;
 		ret = swait_event_idle_timeout_exclusive(
 				rcu_state.gp_wq, rcu_gp_fqs_check_wake(&gf), j);
+		rcu_gp_torture_wait();
 		rcu_state.gp_state = RCU_GP_DOING_FQS;
 		/* Locking provides needed memory barriers. */
 		/* If grace period done, leave loop. */
@@ -2350,10 +2376,12 @@ static int __noreturn rcu_gp_kthread(void *arg)
 		for (;;) {
 			trace_rcu_grace_period(rcu_state.name, rcu_state.gp_seq,
 					       TPS("reqwait"));
-			rsp->gp_state = RCU_GP_WAIT_GPS;
-			swait_event_idle_exclusive(rsp->gp_wq, READ_ONCE(rsp->gp_flags) &
-						     RCU_GP_FLAG_INIT);
-			rsp->gp_state = RCU_GP_DONE_GPS;
+			rcu_state.gp_state = RCU_GP_WAIT_GPS;
+			swait_event_idle_exclusive(rcu_state.gp_wq,
+					 READ_ONCE(rcu_state.gp_flags) &
+					 RCU_GP_FLAG_INIT);
+			rcu_gp_torture_wait();
+			rcu_state.gp_state = RCU_GP_DONE_GPS;
 			/* Locking provides needed memory barrier. */
 			if (rcu_gp_init(rsp))
 				break;
