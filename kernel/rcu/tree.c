@@ -2900,7 +2900,8 @@ static void rcu_do_batch(struct rcu_state *rsp, struct rcu_data *rdp)
 
 	local_irq_save(flags);
 	count = -rcl.len;
-	trace_rcu_batch_end(rsp->name, count, !!rcl.head, need_resched(),
+	rdp->n_cbs_invoked += count;
+	trace_rcu_batch_end(rcu_state.name, count, !!rcl.head, need_resched(),
 			    is_idle_task(current), rcu_is_callbacks_kthread());
 
 	/* Update counts and requeue any remaining callbacks. */
