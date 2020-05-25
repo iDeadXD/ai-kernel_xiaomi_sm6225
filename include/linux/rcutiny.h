@@ -64,28 +64,7 @@ static inline void synchronize_rcu_expedited(void)
 	synchronize_sched();	/* Only one CPU, so pretty fast anyway!!! */
 }
 
-static inline void rcu_barrier(void)
-{
-	rcu_barrier_sched();  /* Only one CPU, so only one list of callbacks! */
-}
-
-static inline void synchronize_rcu_bh(void)
-{
-	synchronize_sched();
-}
-
-static inline void synchronize_rcu_bh_expedited(void)
-{
-	synchronize_sched();
-}
-
-static inline void synchronize_sched_expedited(void)
-{
-	synchronize_sched();
-}
-
-static inline void kfree_call_rcu(struct rcu_head *head,
-				  rcu_callback_t func)
+static inline void kvfree_call_rcu(struct rcu_head *head, rcu_callback_t func)
 {
 	call_rcu(head, func);
 }
