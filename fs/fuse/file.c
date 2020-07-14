@@ -1697,7 +1697,8 @@ __acquires(fi->lock)
 	}
 }
 
-static void tree_insert(struct rb_root *root, struct fuse_writepage_args *wpa)
+static struct fuse_writepage_args *fuse_insert_writeback(struct rb_root *root,
+						struct fuse_writepage_args *wpa)
 {
 	pgoff_t idx_from = wpa->ia.write.in.offset >> PAGE_SHIFT;
 	pgoff_t idx_to = idx_from + wpa->ia.ap.num_pages - 1;
@@ -1720,11 +1721,17 @@ static void tree_insert(struct rb_root *root, struct fuse_writepage_args *wpa)
 		else if (idx_to < curr_index)
 			p = &(*p)->rb_left;
 		else
-			return (void) WARN_ON(true);
+			return curr;
 	}
 
 	rb_link_node(&wpa->writepages_entry, parent, p);
 	rb_insert_color(&wpa->writepages_entry, root);
+	return NULL;
+}
+
+static void tree_insert(struct rb_root *root, struct fuse_writepage_args *wpa)
+{
+	WARN_ON(fuse_insert_writeback(root, wpa));
 }
 
 static void fuse_writepage_end(struct fuse_conn *fc, struct fuse_args *args,
@@ -2005,10 +2012,8 @@ static bool fuse_writepage_add(struct fuse_writepage_args *new_wpa,
 	new_ap->num_pages = 1;
 
 	spin_lock(&fi->lock);
-	rb_erase(&new_wpa->writepages_entry, &fi->writepages);
-	old_wpa = fuse_find_writeback(fi, page->index, page->index);
+	old_wpa = fuse_insert_writeback(&fi->writepages, new_wpa);
 	if (!old_wpa) {
-		tree_insert(&fi->writepages, new_wpa);
 		spin_unlock(&fi->lock);
 		return true;
 	}
@@ -2120,12 +2125,6 @@ static int fuse_writepages_fill(struct page *page,
 		ap->args.end = fuse_writepage_end;
 		ap->num_pages = 0;
 		wpa->inode = inode;
-
-		spin_lock(&fi->lock);
-		tree_insert(&fi->writepages, wpa);
-		spin_unlock(&fi->lock);
-
-		data->wpa = wpa;
 	}
 	set_page_writeback(page);
 
