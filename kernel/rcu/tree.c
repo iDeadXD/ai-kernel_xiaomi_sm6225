@@ -3076,72 +3076,16 @@ static void force_quiescent_state(struct rcu_state *rsp)
 	rcu_gp_kthread_wake(rsp);
 }
 
-/*
- * This function checks for grace-period requests that fail to motivate
- * RCU to come out of its idle mode.
- */
-static void
-rcu_check_gp_start_stall(struct rcu_state *rsp, struct rcu_node *rnp,
-			 struct rcu_data *rdp)
+// Workqueue handler for an RCU reader for kernels enforcing struct RCU
+// grace periods.
+static void strict_work_handler(struct work_struct *work)
 {
-	const unsigned long gpssdelay = rcu_jiffies_till_stall_check() * HZ;
-	unsigned long flags;
-	unsigned long j;
-	struct rcu_node *rnp_root = rcu_get_root(rsp);
-	static atomic_t warned = ATOMIC_INIT(0);
-
-	if (!IS_ENABLED(CONFIG_PROVE_RCU) || rcu_gp_in_progress(rsp) ||
-	    ULONG_CMP_GE(rnp_root->gp_seq, rnp_root->gp_seq_needed))
-		return;
-	j = jiffies; /* Expensive access, and in common case don't get here. */
-	if (time_before(j, READ_ONCE(rsp->gp_req_activity) + gpssdelay) ||
-	    time_before(j, READ_ONCE(rsp->gp_activity) + gpssdelay) ||
-	    atomic_read(&warned))
-		return;
-
-	raw_spin_lock_irqsave_rcu_node(rnp, flags);
-	j = jiffies;
-	if (rcu_gp_in_progress(rsp) ||
-	    ULONG_CMP_GE(rnp_root->gp_seq, rnp_root->gp_seq_needed) ||
-	    time_before(j, READ_ONCE(rsp->gp_req_activity) + gpssdelay) ||
-	    time_before(j, READ_ONCE(rsp->gp_activity) + gpssdelay) ||
-	    atomic_read(&warned)) {
-		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
-		return;
-	}
-	/* Hold onto the leaf lock to make others see warned==1. */
-
-	if (rnp_root != rnp)
-		raw_spin_lock_rcu_node(rnp_root); /* irqs already disabled. */
-	j = jiffies;
-	if (rcu_gp_in_progress(rsp) ||
-	    ULONG_CMP_GE(rnp_root->gp_seq, rnp_root->gp_seq_needed) ||
-	    time_before(j, rsp->gp_req_activity + gpssdelay) ||
-	    time_before(j, rsp->gp_activity + gpssdelay) ||
-	    atomic_xchg(&warned, 1)) {
-		raw_spin_unlock_rcu_node(rnp_root); /* irqs remain disabled. */
-		raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
-		return;
-	}
-	pr_alert("%s: g%ld->%ld gar:%lu ga:%lu f%#x gs:%d %s->state:%#lx\n",
-		 __func__, (long)READ_ONCE(rsp->gp_seq),
-		 (long)READ_ONCE(rnp_root->gp_seq_needed),
-		 j - rsp->gp_req_activity, j - rsp->gp_activity,
-		 rsp->gp_flags, rsp->gp_state, rsp->name,
-		 rsp->gp_kthread ? rsp->gp_kthread->state : 0x1ffffL);
-	WARN_ON(1);
-	if (rnp_root != rnp)
-		raw_spin_unlock_rcu_node(rnp_root);
-	raw_spin_unlock_irqrestore_rcu_node(rnp, flags);
+	rcu_read_lock();
+	rcu_read_unlock();
 }
 
-/*
- * This does the RCU core processing work for the specified rcu_state
- * and rcu_data structures.  This may be called only from the CPU to
- * whom the rdp belongs.
- */
-static void
-__rcu_process_callbacks(struct rcu_state *rsp)
+/* Perform RCU core processing work for the current CPU.  */
+static __latent_entropy void rcu_core(void)
 {
 	unsigned long flags;
 	struct rcu_data *rdp = raw_cpu_ptr(rsp->rda);
@@ -3184,6 +3128,10 @@ static __latent_entropy void rcu_process_callbacks(struct softirq_action *unused
 	for_each_rcu_flavor(rsp)
 		__rcu_process_callbacks(rsp);
 	trace_rcu_utilization(TPS("End RCU core"));
+
+	// If strict GPs, schedule an RCU reader in a clean environment.
+	if (IS_ENABLED(CONFIG_RCU_STRICT_GRACE_PERIOD))
+		queue_work_on(rdp->cpu, rcu_gp_wq, &rdp->strict_work);
 }
 
 /*
@@ -4424,10 +4372,10 @@ rcu_boot_init_percpu_data(int cpu, struct rcu_state *rsp)
 
 	/* Set up local state, ensuring consistent view of global state. */
 	rdp->grpmask = leaf_node_cpu_bit(rdp->mynode, cpu);
-	rdp->dynticks = &per_cpu(rcu_dynticks, cpu);
-	WARN_ON_ONCE(rdp->dynticks->dynticks_nesting != 1);
-	WARN_ON_ONCE(rcu_dynticks_in_eqs(rcu_dynticks_snap(rdp->dynticks)));
-	rdp->rcu_ofl_gp_seq = rsp->gp_seq;
+	INIT_WORK(&rdp->strict_work, strict_work_handler);
+	WARN_ON_ONCE(rdp->dynticks_nesting != 1);
+	WARN_ON_ONCE(rcu_dynticks_in_eqs(rcu_dynticks_snap(rdp)));
+	rdp->rcu_ofl_gp_seq = rcu_state.gp_seq;
 	rdp->rcu_ofl_gp_flags = RCU_GP_CLEANED;
 	rdp->rcu_onl_gp_seq = rsp->gp_seq;
 	rdp->rcu_onl_gp_flags = RCU_GP_CLEANED;
