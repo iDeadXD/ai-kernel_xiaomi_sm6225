@@ -1143,10 +1143,13 @@ static void rcu_disable_urgency_upon_qs(struct rcu_data *rdp)
  *
  * Return true if RCU is watching the running CPU, which means that this
  * CPU can safely enter RCU read-side critical sections.  In other words,
- * if the current CPU is in its idle loop and is neither in an interrupt
- * or NMI handler, return true.
+ * if the current CPU is not in its idle loop or is in an interrupt or
+ * NMI handler, return true.
+ *
+ * Make notrace because it can be called by the internal functions of
+ * ftrace, and making this notrace removes unnecessary recursion calls.
  */
-bool rcu_is_watching(void)
+notrace bool rcu_is_watching(void)
 {
 	bool ret;
 
