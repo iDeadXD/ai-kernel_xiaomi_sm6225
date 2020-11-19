@@ -2953,35 +2953,16 @@ static void rcu_do_batch(struct rcu_state *rsp, struct rcu_data *rdp)
 void rcu_check_callbacks(int user)
 {
 	trace_rcu_utilization(TPS("Start scheduler-tick"));
-	increment_cpu_stall_ticks();
-	if (user || rcu_is_cpu_rrupt_from_idle()) {
-
-		/*
-		 * Get here if this CPU took its interrupt from user
-		 * mode or from the idle loop, and if this is not a
-		 * nested interrupt.  In this case, the CPU is in
-		 * a quiescent state, so note it.
-		 *
-		 * No memory barrier is required here because both
-		 * rcu_sched_qs() and rcu_bh_qs() reference only CPU-local
-		 * variables that other CPUs neither access nor modify,
-		 * at least not while the corresponding CPU is online.
-		 */
-
-		rcu_sched_qs();
-		rcu_bh_qs();
-		rcu_note_voluntary_context_switch(current);
-
-	} else if (!in_softirq()) {
-
-		/*
-		 * Get here if this CPU did not take its interrupt from
-		 * softirq, in other words, if it is not interrupting
-		 * a rcu_bh read-side critical section.  This is an _bh
-		 * critical section, so note it.
-		 */
-
-		rcu_bh_qs();
+	lockdep_assert_irqs_disabled();
+	raw_cpu_inc(rcu_data.ticks_this_gp);
+	/* The load-acquire pairs with the store-release setting to true. */
+	if (smp_load_acquire(this_cpu_ptr(&rcu_data.rcu_urgent_qs))) {
+		/* Idle and userspace execution already are quiescent states. */
+		if (!rcu_is_cpu_rrupt_from_idle() && !user) {
+			set_tsk_need_resched(current);
+			set_preempt_need_resched();
+		}
+		__this_cpu_write(rcu_data.rcu_urgent_qs, false);
 	}
 	rcu_preempt_check_callbacks();
 	/* The load-acquire pairs with the store-release setting to true. */
@@ -2995,6 +2976,7 @@ void rcu_check_callbacks(int user)
 	}
 	if (rcu_pending(user))
 		invoke_rcu_core();
+	lockdep_assert_irqs_disabled();
 
 	trace_rcu_utilization(TPS("End scheduler-tick"));
 }
@@ -4174,6 +4156,8 @@ static int rcu_pending(int user)
 	bool gp_in_progress;
 	struct rcu_data *rdp = this_cpu_ptr(&rcu_data);
 	struct rcu_node *rnp = rdp->mynode;
+
+	lockdep_assert_irqs_disabled();
 
 	/* Check for CPU stalls, if enabled. */
 	check_cpu_stall(rsp, rdp);

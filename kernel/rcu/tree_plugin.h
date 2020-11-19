@@ -754,6 +754,7 @@ static void rcu_preempt_check_callbacks(void)
 	struct rcu_state *rsp = &rcu_preempt_state;
 	struct task_struct *t = current;
 
+	lockdep_assert_irqs_disabled();
 	if (user || rcu_is_cpu_rrupt_from_idle()) {
 		rcu_note_voluntary_context_switch(current);
 	}
