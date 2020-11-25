@@ -1812,7 +1812,7 @@ static int __init fts_ts_init(void)
 		FTS_ERROR("saved_command_line ERROR!");
 		return -ENOMEM;
 	} else {
-		if (strnstr(saved_command_line, "c3q_43_03_0b", 2048) != NULL) {
+		if (strnstr(saved_command_line, "c3q_43_03_0b", strlen(saved_command_line)) != NULL) {
 			FTS_INFO("TP info: [Vendor]xinli [IC]ft8006s");
 		} else {
 			FTS_ERROR("Unknown Touch");
