@@ -741,8 +741,14 @@ __SYSCALL(__NR_pidfd_send_signal, sys_pidfd_send_signal)
 #define __NR_pidfd_open 434
 __SYSCALL(__NR_pidfd_open, sys_pidfd_open)
 
+#define __NR_futex_wait 441
+__SYSCALL(__NR_futex_wait, sys_futex_wait)
+
+#define __NR_futex_wake 442
+__SYSCALL(__NR_futex_wake, sys_futex_wake)
+
 #undef __NR_syscalls
-#define __NR_syscalls 435
+#define __NR_syscalls 443
 
 /*
  * 32 bit systems traditionally used different

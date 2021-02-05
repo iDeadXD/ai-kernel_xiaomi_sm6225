@@ -737,8 +737,14 @@ __SC_COMP(__NR_io_pgetevents, sys_io_pgetevents, compat_sys_io_pgetevents)
 #define __NR_rseq 293
 __SYSCALL(__NR_rseq, sys_rseq)
 
+#define __NR_futex_wait 441
+__SYSCALL(__NR_futex_wait, sys_futex_wait)
+
+#define __NR_futex_wake 442
+__SYSCALL(__NR_futex_wake, sys_futex_wake)
+
 #undef __NR_syscalls
-#define __NR_syscalls 294
+#define __NR_syscalls 443
 
 /*
  * 32 bit systems traditionally used different
