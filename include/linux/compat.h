@@ -414,6 +414,12 @@ struct compat_robust_list_head {
 	compat_uptr_t			list_op_pending;
 };
 
+struct compat_futex_waitv {
+	compat_uptr_t uaddr;
+	compat_uint_t val;
+	compat_uint_t flags;
+};
+
 #ifdef CONFIG_COMPAT_OLD_SIGACTION
 struct compat_old_sigaction {
 	compat_uptr_t			sa_handler;
@@ -702,6 +708,11 @@ compat_sys_get_robust_list(int pid, compat_uptr_t __user *head_ptr,
 /* kernel/hrtimer.c */
 asmlinkage long compat_sys_nanosleep(struct compat_timespec __user *rqtp,
 				     struct compat_timespec __user *rmtp);
+
+/* kernel/futex2.c */
+asmlinkage long compat_sys_futex_waitv(struct compat_futex_waitv *waiters,
+				       compat_uint_t nr_futexes, compat_uint_t flags,
+				       struct __kernel_timespec __user *timo);
 
 /* kernel/itimer.c */
 asmlinkage long compat_sys_getitimer(int which,
