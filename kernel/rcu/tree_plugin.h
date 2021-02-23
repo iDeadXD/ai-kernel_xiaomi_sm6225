@@ -2111,15 +2111,17 @@ static void __wake_nocb_leader(struct rcu_data *rdp, bool force,
 		raw_spin_unlock_irqrestore(&rdp->nocb_lock, flags);
 		return;
 	}
-	if (rdp_leader->nocb_leader_sleep || force) {
-		/* Prior smp_mb__after_atomic() orders against prior enqueue. */
-		WRITE_ONCE(rdp_leader->nocb_leader_sleep, false);
+
+	if (READ_ONCE(rdp->nocb_defer_wakeup) > RCU_NOCB_WAKE_NOT) {
+		WRITE_ONCE(rdp->nocb_defer_wakeup, RCU_NOCB_WAKE_NOT);
 		del_timer(&rdp->nocb_timer);
-		raw_spin_unlock_irqrestore(&rdp->nocb_lock, flags);
-		smp_mb(); /* ->nocb_leader_sleep before swake_up_one(). */
-		swake_up_one(&rdp_leader->nocb_wq);
-	} else {
-		raw_spin_unlock_irqrestore(&rdp->nocb_lock, flags);
+	}
+	rcu_nocb_unlock_irqrestore(rdp, flags);
+	raw_spin_lock_irqsave(&rdp_gp->nocb_gp_lock, flags);
+	if (force || READ_ONCE(rdp_gp->nocb_gp_sleep)) {
+		WRITE_ONCE(rdp_gp->nocb_gp_sleep, false);
+		needwake = true;
+		trace_rcu_nocb_wake(rcu_state.name, rdp->cpu, TPS("DoWake"));
 	}
 }
 
@@ -2655,9 +2657,8 @@ static void do_nocb_deferred_wakeup_common(struct rcu_data *rdp)
 		return;
 	}
 	ndw = READ_ONCE(rdp->nocb_defer_wakeup);
-	WRITE_ONCE(rdp->nocb_defer_wakeup, RCU_NOCB_WAKE_NOT);
-	__wake_nocb_leader(rdp, ndw == RCU_NOCB_WAKE_FORCE, flags);
-	trace_rcu_nocb_wake(rdp->rsp->name, rdp->cpu, TPS("DeferredWake"));
+	wake_nocb_gp(rdp, ndw == RCU_NOCB_WAKE_FORCE, flags);
+	trace_rcu_nocb_wake(rcu_state.name, rdp->cpu, TPS("DeferredWake"));
 }
 
 /* Do a deferred wakeup of rcu_nocb_kthread() from a timer handler. */
