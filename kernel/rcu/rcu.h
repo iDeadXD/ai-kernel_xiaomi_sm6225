@@ -323,8 +323,10 @@ static inline void rcu_init_levelspread(int *levelspread, const int *levelcnt)
 	}
 }
 
-/* Returns first leaf rcu_node of the specified RCU flavor. */
-#define rcu_first_leaf_node(rsp) ((rsp)->level[rcu_num_lvls - 1])
+extern void rcu_init_geometry(void);
+
+/* Returns a pointer to the first leaf rcu_node structure. */
+#define rcu_first_leaf_node() (rcu_state.level[rcu_num_lvls - 1])
 
 /* Is this rcu_node a leaf? */
 #define rcu_is_leaf_node(rnp) ((rnp)->level == rcu_num_lvls - 1)

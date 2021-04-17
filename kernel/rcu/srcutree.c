@@ -98,6 +98,9 @@ static void init_srcu_struct_nodes(struct srcu_struct *sp, bool is_static)
 	struct srcu_node *snp;
 	struct srcu_node *snp_first;
 
+	/* Initialize geometry if it has not already been initialized. */
+	rcu_init_geometry();
+
 	/* Work out the overall tree geometry. */
 	sp->level[0] = &sp->node[0];
 	for (i = 1; i < rcu_num_lvls; i++)
