@@ -83,3 +83,4 @@ obj-$(CONFIG_KINECTICS_XR_NORDIC) += kxrctrl/
 obj-y                           += board_id.o
 obj-$(CONFIG_USB7002_HUB)       += usb7002/
 obj-$(CONFIG_QTI_HEARTBEAT)     += heartbeat/
+obj-y				+= lyb_taskmmu.o
