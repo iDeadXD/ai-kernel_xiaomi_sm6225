@@ -1359,11 +1359,8 @@ static void rcutorture_one_extend(int *readstate, int newstate,
 		local_irq_disable();
 	if (statesnew & RCUTORTURE_RDR_PREEMPT)
 		preempt_disable();
-<<<<<<< HEAD
-=======
 	if (statesnew & RCUTORTURE_RDR_SCHED)
 		rcu_read_lock_sched();
->>>>>>> 8c75469052f6 (rcutorture: Avoid problematic critical section nesting on PREEMPT_RT)
 	if (statesnew & RCUTORTURE_RDR_RCU)
 		idxnew = cur_ops->readlock() << RCUTORTURE_RDR_SHIFT;
 
