@@ -1841,7 +1841,7 @@ static void __exit fts_ts_exit(void)
 }
 
 //module_init(fts_ts_init);
-late_initcall(fts_ts_init);
+device_initcall_sync(fts_ts_init);
 module_exit(fts_ts_exit);
 
 MODULE_AUTHOR("FocalTech Driver Team");
