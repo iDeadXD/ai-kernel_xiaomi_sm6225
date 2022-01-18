@@ -952,7 +952,10 @@ static int rcu_print_task_exp_stall(struct rcu_node *rnp)
  */
 void synchronize_rcu_expedited(void)
 {
-	struct rcu_state *rsp = rcu_state_p;
+	bool no_wq;
+	struct rcu_exp_work rew;
+	struct rcu_node *rnp;
+	unsigned long s;
 
 	RCU_LOCKDEP_WARN(lock_is_held(&rcu_bh_lock_map) ||
 			 lock_is_held(&rcu_lock_map) ||
@@ -961,7 +964,46 @@ void synchronize_rcu_expedited(void)
 
 	if (rcu_scheduler_active == RCU_SCHEDULER_INACTIVE)
 		return;
-	_synchronize_rcu_expedited(rsp, sync_rcu_exp_handler);
+
+	/* If expedited grace periods are prohibited, fall back to normal. */
+	if (rcu_gp_is_normal()) {
+		wait_rcu_gp(call_rcu);
+		return;
+	}
+
+	/* Take a snapshot of the sequence number.  */
+	s = rcu_exp_gp_seq_snap();
+	if (exp_funnel_lock(s))
+		return;  /* Someone else did our work for us. */
+
+	/* Don't use workqueue during boot or from an incoming CPU. */
+	preempt_disable();
+	no_wq = rcu_scheduler_active == RCU_SCHEDULER_INIT ||
+		!cpumask_test_cpu(smp_processor_id(), cpu_active_mask);
+	preempt_enable();
+
+	/* Ensure that load happens before action based on it. */
+	if (unlikely(no_wq)) {
+		/* Direct call for scheduler init, early_initcall()s, and incoming CPUs. */
+		rcu_exp_sel_wait_wake(s);
+	} else {
+		/* Marshall arguments & schedule the expedited grace period. */
+		rew.rew_s = s;
+		INIT_WORK_ONSTACK(&rew.rew_work, wait_rcu_exp_gp);
+		queue_work(rcu_gp_wq, &rew.rew_work);
+	}
+
+	/* Wait for expedited grace period to complete. */
+	rnp = rcu_get_root();
+	wait_event(rnp->exp_wq[rcu_seq_ctr(s) & 0x3],
+		   sync_exp_work_done(s));
+	smp_mb(); /* Workqueue actions happen before return. */
+
+	/* Let the next expedited grace period start. */
+	mutex_unlock(&rcu_state.exp_mutex);
+
+	if (likely(!no_wq))
+		destroy_work_on_stack(&rew.rew_work);
 }
 EXPORT_SYMBOL_GPL(synchronize_rcu_expedited);
 
