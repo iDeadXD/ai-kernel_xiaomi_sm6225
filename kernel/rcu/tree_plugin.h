@@ -2761,31 +2761,23 @@ static void rcu_spawn_one_nocb_kthread(struct rcu_state *rsp, int cpu)
 	if (!rcu_is_nocb_cpu(cpu) || rdp_spawn->nocb_kthread)
 		return;
 
-	/* If we didn't spawn the leader first, reorganize! */
-	rdp_old_leader = rdp_spawn->nocb_leader;
-	if (rdp_old_leader != rdp_spawn && !rdp_old_leader->nocb_kthread) {
-		rdp_last = NULL;
-		rdp = rdp_old_leader;
-		do {
-			rdp->nocb_leader = rdp_spawn;
-			if (rdp_last && rdp != rdp_spawn)
-				rdp_last->nocb_next_follower = rdp;
-			if (rdp == rdp_spawn) {
-				rdp = rdp->nocb_next_follower;
-			} else {
-				rdp_last = rdp;
-				rdp = rdp->nocb_next_follower;
-				rdp_last->nocb_next_follower = NULL;
-			}
-		} while (rdp);
-		rdp_spawn->nocb_next_follower = rdp_old_leader;
+	/* If we didn't spawn the GP kthread first, reorganize! */
+	rdp_gp = rdp->nocb_gp_rdp;
+	if (!rdp_gp->nocb_gp_kthread) {
+		t = kthread_run_perf_critical(cpu_lp_mask, rcu_nocb_gp_kthread, rdp_gp,
+				"rcuog/%d", rdp_gp->cpu);
+		if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo GP kthread, OOM is now expected behavior\n", __func__))
+			return;
+		WRITE_ONCE(rdp_gp->nocb_gp_kthread, t);
 	}
 
-	/* Spawn the kthread for this CPU and RCU flavor. */
-	t = kthread_run(rcu_nocb_kthread, rdp_spawn,
-			"rcuo%c/%d", rsp->abbr, cpu);
-	BUG_ON(IS_ERR(t));
-	WRITE_ONCE(rdp_spawn->nocb_kthread, t);
+	/* Spawn the kthread for this CPU. */
+	t = kthread_run_perf_critical(cpu_lp_mask, rcu_nocb_cb_kthread, rdp,
+			"rcuo%c/%d", rcu_state.abbr, cpu);
+	if (WARN_ONCE(IS_ERR(t), "%s: Could not start rcuo CB kthread, OOM is now expected behavior\n", __func__))
+		return;
+	WRITE_ONCE(rdp->nocb_cb_kthread, t);
+	WRITE_ONCE(rdp->nocb_gp_kthread, rdp_gp->nocb_gp_kthread);
 }
 
 /*
