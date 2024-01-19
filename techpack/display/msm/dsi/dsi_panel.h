@@ -244,6 +244,11 @@ struct dsi_panel {
 	enum dsi_doze_mode_type doze_mode;
 	u32 dsi_refresh_flag;
 #endif
+
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	u32 dsi_refresh_flag;
+#endif
+
     int hbm_mode;
 #ifdef CONFIG_TARGET_PROJECT_C3Q
 	bool dispparam_enabled;
