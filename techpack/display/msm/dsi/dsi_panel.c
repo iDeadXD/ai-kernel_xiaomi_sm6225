@@ -529,6 +529,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 #endif
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
+	u32 refresh_rate;
 	notifier_data.data = &power_status;
 	refresh_rate = panel->cur_mode->timing.refresh_rate;
 	notifier_data.refresh_rate = refresh_rate;
@@ -5224,6 +5225,7 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 #endif
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
+	u32 refresh_rate;
 	notifier_data.data = &power_status;
 	refresh_rate = panel->cur_mode->timing.refresh_rate;
 	notifier_data.refresh_rate = refresh_rate;
