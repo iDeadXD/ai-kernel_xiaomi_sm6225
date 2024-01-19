@@ -378,6 +378,11 @@ void dsi_set_backlight_control(struct dsi_panel *panel,
 
 #endif
 
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+void dsi_set_backlight_control(struct dsi_panel *panel,
+			 struct dsi_display_mode *adj_mode);
+#endif
+
 int dsi_panel_apply_hbm_mode(struct dsi_panel *panel);
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
