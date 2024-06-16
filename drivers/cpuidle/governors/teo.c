@@ -598,7 +598,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
 
 	/*
-	 * If the closest expected timer is before the terget residency of the
+	 * If the closest expected timer is before the target residency of the
 	 * candidate state, a shallower one needs to be found.
 	 */
 	if (drv->states[idx].target_residency > duration_us) {
