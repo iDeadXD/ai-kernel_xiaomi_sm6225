@@ -36,11 +36,6 @@ int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
 					    flags);
 }
 
-extern void ksu_sucompat_init();
-extern void ksu_sucompat_exit();
-extern void ksu_ksud_init();
-extern void ksu_ksud_exit();
-
 int __init ksu_kernelsu_init(void)
 {
 #ifdef CONFIG_KSU_DEBUG
@@ -65,17 +60,6 @@ int __init ksu_kernelsu_init(void)
 
 	ksu_throne_tracker_init();
 
-#ifdef CONFIG_KPROBES
-	ksu_sucompat_init();
-	ksu_ksud_init();
-#else
-#endif
-
-#ifdef MODULE
-#ifndef CONFIG_KSU_DEBUG
-	kobject_del(&THIS_MODULE->mkobj.kobj);
-#endif
-#endif
 	return 0;
 }
 
@@ -87,12 +71,6 @@ void ksu_kernelsu_exit(void)
 
 	destroy_workqueue(ksu_workqueue);
 
-#ifdef CONFIG_KPROBES
-	ksu_ksud_exit();
-	ksu_sucompat_exit();
-#endif
-
-	ksu_core_exit();
 }
 
 module_init(ksu_kernelsu_init);
