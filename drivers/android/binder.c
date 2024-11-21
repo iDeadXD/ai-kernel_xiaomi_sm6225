@@ -708,7 +708,7 @@ static void binder_transaction_priority(struct binder_thread *thread,
 	if (t->set_priority_called)
 		return;
 	t->set_priority_called = true;
-	if (!node->inherit_rt && is_rt_policy(desired_prio.sched_policy)) {
+	if (!node->inherit_rt && is_rt_policy(desired.sched_policy)) {
 		desired.prio = NICE_TO_PRIO(0);
 		desired.sched_policy = SCHED_NORMAL;
 	}
