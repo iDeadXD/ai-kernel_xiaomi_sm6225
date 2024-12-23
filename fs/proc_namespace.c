@@ -21,6 +21,10 @@
 #include "pnode.h"
 #include "internal.h"
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+extern bool susfs_is_current_ksu_domain(void);
+#endif
+
 
 static __poll_t mounts_poll(struct file *file, poll_table *wait)
 {
