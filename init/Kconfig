@@ -158,6 +158,16 @@ config UNAME_OVERRIDE_STRING
 
 endif
 
+menuconfig SPOOF_ABOUT_PHONE
+	bool "Spoof About Phone Kernel string"
+
+if SPOOF_ABOUT_PHONE
+
+config SPOOF_KERNEL_STRING_AP
+	string "New spoofed kernel string"
+
+endif
+
 config HAVE_KERNEL_GZIP
 	bool
 

@@ -1232,6 +1232,25 @@ static void override_custom_release(char __user *release, size_t len)
 }
 #endif
 
+#ifdef CONFIG_SPOOF_ABOUT_PHONE
+static void spoof_about_phone_kernel(char __user *release, size_t len)
+{
+	char *buf;
+
+	buf = kstrdup_quotable_cmdline(current, GFP_KERNEL);
+	if (buf == NULL)
+		return;
+
+	if (strstr(buf, "com.android.settings")) {
+		copy_to_user(release, CONFIG_SPOOF_KERNEL_STRING_AP,
+			       strlen(CONFIG_SPOOF_KERNEL_STRING_AP) + 1);
+	}
+
+	kfree(buf);
+
+}
+#endif
+
 /*
  * Work around broken programs that cannot handle "Linux 3.0".
  * Instead we map 3.x to 2.6.40+x, so e.g. 3.0 would be 2.6.40
@@ -1281,6 +1300,9 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 
 #ifdef CONFIG_UNAME_OVERRIDE	
 	override_custom_release(name->release, sizeof(name->release));
+#endif
+#ifdef CONFIG_SPOOF_ABOUT_PHONE
+	spoof_about_phone_kernel(name->release, sizeof(name->release));
 #endif
 	if (override_release(name->release, sizeof(name->release)))
 		return -EFAULT;
