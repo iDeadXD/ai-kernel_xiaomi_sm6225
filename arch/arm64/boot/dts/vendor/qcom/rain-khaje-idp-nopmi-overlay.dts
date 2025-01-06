@@ -5,7 +5,7 @@
 #include "rain.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. FOG KHAJE IDP nopmi";
+	model = "Qualcomm Technologies, Inc. RAIN KHAJE IDP nopmi";
         compatible = "qcom,khaje-idp", "qcom,khaje", "qcom,idp";
         qcom,msm-id = <0x206 0x10000>;
         qcom,board-id = <0x60022 0x00>;
