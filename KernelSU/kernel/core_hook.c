@@ -778,11 +778,7 @@ static void ksu_umount_mnt(struct path *path, int flags)
 	}
 }
 
-#ifdef CONFIG_KSU_SUSFS
 void ksu_try_umount(const char *mnt, bool check_mnt, int flags)
-#else
-static void try_umount(const char *mnt, bool check_mnt, int flags)
-#endif
 {
 	struct path path;
 	int err = kern_path(mnt, 0, &path);
