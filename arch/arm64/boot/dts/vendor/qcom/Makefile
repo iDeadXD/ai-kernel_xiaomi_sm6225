@@ -340,7 +340,6 @@ khajeg-idp-nopmi-overlay.dtbo-base := khajeg.dtb
 khajeg-idp-pm8010-overlay.dtbo-base := khajeg.dtb
 khajeg-idp-usbc-overlay.dtbo-base := khajeg.dtb
 khajeg-idps-display-90hz-overlay.dtbo-base := khajeg.dtb
-spes-khaje-idp-nopmi-overlay.dtbo-base := khaje.dtb
 fog-khaje-idp-nopmi-overlay.dtbo-base := khaje.dtb
 rain-khaje-idp-nopmi-overlay.dtbo-base := khaje.dtb
 wind-khaje-idp-nopmi-overlay.dtbo-base := khaje.dtb
