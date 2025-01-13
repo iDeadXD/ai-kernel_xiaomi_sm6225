@@ -61,6 +61,13 @@ static int wcd937x_handle_post_irq(void *data);
 static int wcd937x_reset(struct device *dev);
 static int wcd937x_reset_low(struct device *dev);
 
+static int high_perf_mode = 0;
+static advanced_hifi = 0;
+module_param(high_perf_mode, int, 0664);
+MODULE_PARM_DESC(high_perf_mode, "Force hph-mode to CLS_AB for better audio.");
+module_param(advanced_hifi, int, 0664);
+MODULE_PARM_DESC(advanced_hifi, "Same as high_perf_mode, but set mode to CLS_AB_HIFI. Enable high_perf_mode first!!");
+
 static const struct regmap_irq wcd937x_irqs[WCD937X_NUM_IRQS] = {
 	REGMAP_IRQ_REG(WCD937X_IRQ_MBHC_BUTTON_PRESS_DET, 0, 0x01),
 	REGMAP_IRQ_REG(WCD937X_IRQ_MBHC_BUTTON_RELEASE_DET, 0, 0x02),
@@ -438,6 +445,24 @@ struct wcd937x_mbhc *wcd937x_soc_get_mbhc(struct snd_soc_component *component)
 }
 EXPORT_SYMBOL(wcd937x_soc_get_mbhc);
 
+/*
+	Idk why i make this. Only for testing purpose.
+	For now, only enabled for HPHR & HPHL.
+	AUX/EAR? DWYOR!
+*/
+static int set_fixed_hph_mode(struct wcd937x_priv *wcd937x){
+	int hph_mode;
+	if ((high_perf_mode == 1) && (advanced_hifi == 0)){
+		hph_mode = CLS_AB;
+	} else if ((high_perf_mode == 1) && (advanced_hifi == 1)){
+		hph_mode = CLS_AB_HIFI;
+	} else {
+		hph_mode = wcd937x->hph_mode;
+	}
+
+	return hph_mode;
+}
+
 static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 					struct snd_kcontrol *kcontrol,
 					int event)
@@ -445,7 +470,8 @@ static int wcd937x_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
-	int hph_mode = wcd937x->hph_mode;
+	// int hph_mode = wcd937x->hph_mode;
+	int hph_mode = set_fixed_hph_mode(wcd937x);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -534,7 +560,8 @@ static int wcd937x_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
-	int hph_mode = wcd937x->hph_mode;
+	// int hph_mode = wcd937x->hph_mode;
+	int hph_mode = set_fixed_hph_mode(wcd937x);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -719,7 +746,8 @@ static int wcd937x_codec_enable_hphr_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
 	int ret = 0;
-	int hph_mode = wcd937x->hph_mode;
+	// int hph_mode = wcd937x->hph_mode;
+	int hph_mode = set_fixed_hph_mode(wcd937x);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -821,7 +849,8 @@ static int wcd937x_codec_enable_hphl_pa(struct snd_soc_dapm_widget *w,
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
 	int ret = 0;
-	int hph_mode = wcd937x->hph_mode;
+	// int hph_mode = wcd937x->hph_mode;
+	int hph_mode = set_fixed_hph_mode(wcd937x);
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
 		w->name, event);
@@ -1092,7 +1121,8 @@ static int wcd937x_enable_clsh(struct snd_soc_dapm_widget *w,
 	struct snd_soc_component *component =
 			snd_soc_dapm_to_component(w->dapm);
 	struct wcd937x_priv *wcd937x = snd_soc_component_get_drvdata(component);
-	int mode = wcd937x->hph_mode;
+	// int mode = wcd937x->hph_mode;
+	int mode = set_fixed_hph_mode(wcd937x);
 	int ret = 0;
 
 	dev_dbg(component->dev, "%s wname: %s event: %d\n", __func__,
