@@ -62,7 +62,7 @@ static int wcd937x_reset(struct device *dev);
 static int wcd937x_reset_low(struct device *dev);
 
 static int high_perf_mode = 0;
-static advanced_hifi = 0;
+static int advanced_hifi = 0;
 module_param(high_perf_mode, int, 0664);
 MODULE_PARM_DESC(high_perf_mode, "Force hph-mode to CLS_AB for better audio.");
 module_param(advanced_hifi, int, 0664);
