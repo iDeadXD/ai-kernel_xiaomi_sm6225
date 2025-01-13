@@ -125,6 +125,7 @@ struct teo_bin {
  * @state_bins: Idle state data bins for this CPU.
  * @total: Grand total of the "intercepts" and "hits" metrics for all bins.
  * @tick_intercepts: "Intercepts" before TICK_USEC.
+ * @short_idles: Wakeups after short idle periods.
  */
 struct teo_cpu {
 	s64 time_span_ns;
@@ -132,6 +133,7 @@ struct teo_cpu {
 	struct teo_bin state_bins[CPUIDLE_STATE_MAX];
 	unsigned int total;
 	unsigned int tick_intercepts;
+	unsigned int short_idles;
 };
 
 static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
@@ -149,12 +151,12 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	int target_residency;
 	unsigned int measured_us;
 
-	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+	cpu_data->short_idles -= cpu_data->short_idles >> DECAY_SHIFT;
+
+	if (cpu_data->time_span_ns < 0) {
 		/*
-		 * This causes the wakeup to be counted as a hit regardless of
-		 * the real idle duration which doesn't need to be computed
-		 * because the wakeup has been close enough to an anticipated
-		 * timer.
+		 * If one of the safety nets has triggered, assume that this
+		 * might have been a long sleep.
 		 */
 		measured_us = UINT_MAX;
 	} else {
@@ -177,10 +179,14 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 		 * time, so take 1/2 of the exit latency as a very rough
 		 * approximation of the average of it.
 		 */
-		if (measured_us >= lat)
+		if (measured_us >= lat) {
 			measured_us -= lat / 2;
-		else
+			if (measured_us < RESIDENCY_THRESHOLD_US)
+				cpu_data->short_idles += PULSE;
+		} else {
 			measured_us /= 2;
+			cpu_data->short_idles += PULSE;
+		}
 	}
 
 	cpu_data->total = 0;
@@ -423,26 +429,34 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 	if (idx > constraint_idx)
 		idx = constraint_idx;
 
-	if (!idx) {
-		/*
-		 * Query the sleep length to be able to count the wakeup as a
-		 * hit if it is caused by a timer.
-		 */
-		cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
-		goto out_tick;
-	}
-
 	/*
-	 * If state 0 is a polling one, check if the target residency of
-	 * the current candidate state is low enough and skip the timers
-	 * check in that case too.
+	 * If either the candidate state is state 0 or its target residency is
+	 * low enough, there is basically nothing more to do, but if the sleep
+	 * length is not updated, the subsequent wakeup will be counted as an
+	 * "intercept" which may be problematic in the cases when timer wakeups
+	 * are dominant.  Namely, it may effectively prevent deeper idle states
+	 * from being selected at one point even if no imminent timers are
+	 * scheduled.
+	 *
+	 * However, frequent timers in the RESIDENCY_THRESHOLD_NS range on one
+	 * CPU are unlikely (user space has a default 50 us slack value for
+	 * hrtimers and there are relatively few timers with a lower deadline
+	 * value in the kernel), and even if they did happen, the potential
+	 * benefit from using a deep idle state in that case would be
+	 * questionable anyway for latency reasons.  Thus if the measured idle
+	 * duration falls into that range in the majority of cases, assume
+	 * non-timer wakeups to be dominant and skip updating the sleep length
+	 * to reduce latency.
 	 */
-	if ((drv->states[0].flags & CPUIDLE_FLAG_POLLING) &&
-	    drv->states[idx].target_residency < RESIDENCY_THRESHOLD_US)
+	if ((!idx || drv->states[idx].target_residency < RESIDENCY_THRESHOLD_US) &&
+	    2 * cpu_data->short_idles >= cpu_data->total)
 		goto out_tick;
 
 	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
+
+	if (!idx)
+		goto out_tick;
 
 	/*
 	 * If the closest expected timer is before the target residency of the
@@ -507,7 +521,7 @@ static void teo_reflect(struct cpuidle_device *dev, int state)
 	if (dev->poll_time_limit ||
 	    (tick_nohz_idle_got_tick() && cpu_data->sleep_length_ns > TICK_NSEC)) {
 		dev->poll_time_limit = false;
-		cpu_data->time_span_ns = cpu_data->sleep_length_ns;
+		cpu_data->time_span_ns = KTIME_MIN;
 	} else {
 		cpu_data->time_span_ns = local_clock() - cpu_data->time_span_ns;
 	}
