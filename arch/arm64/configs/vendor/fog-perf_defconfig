@@ -1,4 +1,4 @@
-CONFIG_LOCALVERSION="-AiKernel-"
+CONFIG_LOCALVERSION="-AiStrix-"
 # =====================================
 # Spoof kernel string
 CONFIG_SPOOF_ABOUT_PHONE=n
