@@ -4,6 +4,10 @@
  * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+/*
+ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ */
+
 #define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/export.h>
@@ -410,6 +414,10 @@ static struct msm_soc_info cpu_of_id[] = {
 	[473] = {MSM_CPU_SCUBAIOT, "SCUBAIIOT"},
 	[474] = {MSM_CPU_SCUBAPIOT, "SCUBAPIIOT"},
 
+	/* QWM/S Auto 2W ID */
+	[621] = {MSM_CPU_2W_AUTO, "QWMAUTO"},
+	[622] = {MSM_CPU_2W_AUTOP, "QWSAUTO"},
+
 	/* BENGAL-IOT ID */
 	[469] = {MSM_CPU_BENGAL_IOT, "BENGAL-IOT"},
 
@@ -724,7 +732,7 @@ static const char *socinfo_get_feature_code_mapping(void)
 	if (id > SOCINFO_FC_UNKNOWN && id < SOCINFO_FC_EXT_RESERVE)
 		return hw_platform_feature_code[id];
 	else if (id >= SOCINFO_FC_Y0 && id < SOCINFO_FC_INT_RESERVE)
-		return hw_platform_ifeature_code[id & SOCINFO_FC_INT_MASK];
+		return hw_platform_ifeature_code[id - SOCINFO_FC_Y0];
 
 	return NULL;
 }
@@ -770,8 +778,9 @@ char *socinfo_get_partinfo_details(unsigned int part_id)
 	if (socinfo_format < SOCINFO_VERSION(0, 16) ||
 			part_id > SOCINFO_PART_MAX_PARTTYPE)
 		return NULL;
-
-	return partinfo[part_id].part_name;
+	if (part_id < SOCINFO_PART_MAX_PARTTYPE)
+		return partinfo[part_id].part_name;
+	return NULL;
 }
 EXPORT_SYMBOL(socinfo_get_partinfo_details);
 
@@ -2080,7 +2089,7 @@ int __init socinfo_init(void)
 	}
 
 	cur_cpu = cpu_of_id[socinfo->v0_1.id].generic_soc_type;
-	boot_stats_init();
+	//boot_stats_init();
 	socinfo_print();
 	arch_read_hardware_id = msm_read_hardware_id;
 	socinfo_init_done = true;
