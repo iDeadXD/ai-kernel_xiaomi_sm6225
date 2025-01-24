@@ -99,13 +99,13 @@ scm_version()
 			# again using exactly 12 hex chars.
 			else
 				head="$(echo $head | cut -c1-12)"
-				printf '%s%s' -g $head
+				printf '%s%s' -g ''
 			fi
 		fi
 
 		# Is this git on svn?
 		if git config --get svn-remote.svn.url >/dev/null; then
-			printf -- '-svn%s' "`git svn find-rev $head`"
+			printf -- '-svn%s' ""
 		fi
 
 		# Check for uncommitted changes.
@@ -118,7 +118,7 @@ scm_version()
 			git --no-optional-locks status -uno --porcelain 2>/dev/null ||
 			git diff-index --name-only HEAD
 		} | grep -qvE '^(.. )?scripts/package'; then
-			printf '%s' -dirty
+			printf '%s' ''
 		fi
 
 		# All done with git
@@ -130,19 +130,19 @@ scm_version()
 		# Do we have an tagged version?  If so, latesttagdistance == 1
 		if [ "`hg log -r . --template '{latesttagdistance}'`" == "1" ]; then
 			id=`hg log -r . --template '{latesttag}'`
-			printf '%s%s' -hg "$id"
+			printf '%s%s' -hg ""
 		else
 			tag=`printf '%s' "$hgid" | cut -d' ' -f2`
 			if [ -z "$tag" -o "$tag" = tip ]; then
 				id=`printf '%s' "$hgid" | sed 's/[+ ].*//'`
-				printf '%s%s' -hg "$id"
+				printf '%s%s' -hg ""
 			fi
 		fi
 
 		# Are there uncommitted changes?
 		# These are represented by + after the changeset id.
 		case "$hgid" in
-			*+|*+\ *) printf '%s' -dirty ;;
+			*+|*+\ *) printf '%s' '' ;;
 		esac
 
 		# All done with mercurial
@@ -152,7 +152,7 @@ scm_version()
 	# Check for svn and a svn repo.
 	if rev=`LANG= LC_ALL= LC_MESSAGES=C svn info 2>/dev/null | grep '^Last Changed Rev'`; then
 		rev=`echo $rev | awk '{print $NF}'`
-		printf -- '-svn%s' "$rev"
+		printf -- '-svn%s' ""
 
 		# All done with svn
 		return
