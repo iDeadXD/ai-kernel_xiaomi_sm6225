@@ -1,16 +1,19 @@
 CONFIG_LOCALVERSION="-AiStrix-"
-# =====================================
+# ====== Your phone, your rules ======
+# ====================================
 # Spoof kernel string
 CONFIG_SPOOF_ABOUT_PHONE=n
 # CONFIG_SPOOF_KERNEL_STRING_AP is not set
-# =====================================
+# ====================================
 # MGLRU
 CONFIG_LRU_GEN=y
 CONFIG_LRU_GEN_ENABLED=y
+# ====================================
 # Anxiety scheduler
 CONFIG_DEFAULT_CFQ=n
 CONFIG_IOSCHED_ANXIETY=y
 CONFIG_DEFAULT_ANXIETY=y
+# ====================================
 # Connectivity
 CONFIG_TCP_CONG_BBR=y
 CONFIG_TCP_CONG_BBRPLUS=y
@@ -38,15 +41,17 @@ CONFIG_TCP_CONG_ILLINOIS=y
 CONFIG_TCP_CONG_DCTCP=y
 CONFIG_TCP_CONG_CDG=y
 CONFIG_WIREGUARD=y
+# ====================================
 # Efficient Workqueue
 CONFIG_PM=y
 CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
 CONFIG_POWERSUSPEND=y
+# ====================================
 # etc
 CONFIG_BLK_DEBUG_FS=n
 CONFIG_SECURITY_SELINUX_AVC_STATS=n
 CONFIG_DEBUG_KERNEL=n
-# =====================================
+# ====================================
 # CONFIG_LOCALVERSION_AUTO is not set
 # CONFIG_AUDIT is not set
 # CONFIG_AUDITSYSCALL is not set
