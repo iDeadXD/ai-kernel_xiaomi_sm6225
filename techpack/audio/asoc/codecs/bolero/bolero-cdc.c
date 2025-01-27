@@ -1166,8 +1166,8 @@ static ssize_t headphone_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d %d\n",
-		snd_soc_component_read(sound_control_component_ptr, BOLERO_CDC_RX_RX0_RX_VOL_CTL),
-		snd_soc_component_read(sound_control_component_ptr, BOLERO_CDC_RX_RX1_RX_VOL_CTL)
+		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_RX_RX0_RX_VOL_CTL),
+		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_RX_RX1_RX_VOL_CTL)
 	);
 }
 
@@ -1200,7 +1200,7 @@ static ssize_t mic_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n",
-		snd_soc_component_read(sound_control_component_ptr, BOLERO_CDC_TX1_TX_VOL_CTL));
+		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_TX1_TX_VOL_CTL));
 }
  static ssize_t mic_gain_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
