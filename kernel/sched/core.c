@@ -36,7 +36,7 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
  * 1: Yield only to better priority/deadline tasks.
  * 2: Re-queue current tasks. (default CFS)
  */
-__read_mostly int sysctl_sched_yield_type = 0;
+__read_mostly int sysctl_sched_yield_type = 1;
 
 /*
  * Number of tasks to iterate in a single balance run.
