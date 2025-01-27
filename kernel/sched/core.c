@@ -6296,7 +6296,6 @@ static void do_sched_yield(void)
 	rq = this_rq_lock_irq(&rf);
 
 	schedstat_inc(rq->yld_count);
-	current->sched_class->yield_task(rq);
 
 	if (sysctl_sched_yield_type > 1)
 		current->sched_class->yield_task(rq);
