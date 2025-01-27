@@ -113,6 +113,7 @@ static ssize_t double_tap_store(struct kobject *kobj,
                                 size_t count)
 {
 	int rc, val;
+    val = 1;
 	rc = kstrtoint(buf, 10, &val);
 	if (rc)
 	return -EINVAL;
