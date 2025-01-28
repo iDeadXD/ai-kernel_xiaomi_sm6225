@@ -1200,7 +1200,7 @@ static ssize_t speaker_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n",
-		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_WSA_RX0_RX_VOL_CTL));
+		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_WSA_RX1_RX_VOL_CTL));
 }
 
 static ssize_t speaker_gain_store(struct kobject *kobj,
@@ -1210,7 +1210,7 @@ static ssize_t speaker_gain_store(struct kobject *kobj,
 	sscanf(buf, "%d", &input);
 	if (input < -10 || input > 20)
 		input = 0;
-	snd_soc_component_write(sound_control_component_ptr, BOLERO_CDC_WSA_RX0_RX_VOL_CTL, input);
+	snd_soc_component_write(sound_control_component_ptr, BOLERO_CDC_WSA_RX1_RX_VOL_CTL, input);
 	return count;
 }
 
