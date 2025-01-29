@@ -31,14 +31,6 @@
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
 /*
- * Choose the yield level that will perform.
- * 0: No yield.
- * 1: Yield only to better priority/deadline tasks.
- * 2: Re-queue current tasks. (default CFS)
- */
-__read_mostly int sysctl_sched_yield_type = 1;
-
-/*
  * Number of tasks to iterate in a single balance run.
  * Limited because this is done with IRQs disabled.
  */
@@ -6290,16 +6282,9 @@ static void do_sched_yield(void)
 	struct rq_flags rf;
 	struct rq *rq;
 
-	if (!sysctl_sched_yield_type)
-		return;
-
 	rq = this_rq_lock_irq(&rf);
 
 	schedstat_inc(rq->yld_count);
-
-	if (sysctl_sched_yield_type > 1)
-		current->sched_class->yield_task(rq);
-
 
 	preempt_disable();
 	rq_unlock_irq(rq, &rf);
