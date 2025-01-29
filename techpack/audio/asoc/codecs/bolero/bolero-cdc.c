@@ -1196,28 +1196,28 @@ static struct kobj_attribute headphone_gain_attribute =
 		headphone_gain_show,
 		headphone_gain_store);
 
-static ssize_t speaker_gain_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE, "%d\n",
-		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_WSA_RX1_RX_VOL_CTL));
-}
+// static ssize_t speaker_gain_show(struct kobject *kobj,
+// 		struct kobj_attribute *attr, char *buf)
+// {
+// 	return snprintf(buf, PAGE_SIZE, "%d\n",
+// 		snd_soc_component_read32(sound_control_component_ptr, BOLERO_CDC_RX_RX2_RX_VOL_CTL));
+// }
 
-static ssize_t speaker_gain_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int input;
-	sscanf(buf, "%d", &input);
-	if (input < -10 || input > 20)
-		input = 0;
-	snd_soc_component_write(sound_control_component_ptr, BOLERO_CDC_WSA_RX1_RX_VOL_CTL, input);
-	return count;
-}
+// static ssize_t speaker_gain_store(struct kobject *kobj,
+// 		struct kobj_attribute *attr, const char *buf, size_t count)
+// {
+// 	int input;
+// 	sscanf(buf, "%d", &input);
+// 	if (input < -10 || input > 20)
+// 		input = 0;
+// 	snd_soc_component_write(sound_control_component_ptr, BOLERO_CDC_RX_RX2_RX_VOL_CTL, input);
+// 	return count;
+// }
 
-static struct kobj_attribute speaker_gain_attribute =
-	__ATTR(speaker_gain, 0664,
-		speaker_gain_show,
-		speaker_gain_store);
+// static struct kobj_attribute speaker_gain_attribute =
+// 	__ATTR(speaker_gain, 0664,
+// 		speaker_gain_show,
+// 		speaker_gain_store);
 
 static ssize_t mic_gain_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -1245,7 +1245,6 @@ static struct kobj_attribute mic_gain_attribute =
 static struct attribute *sound_control_attrs[] = {
 		&headphone_gain_attribute.attr,
 		&mic_gain_attribute.attr,
-		&speaker_gain_attribute.attr,
 		NULL,
 };
 
