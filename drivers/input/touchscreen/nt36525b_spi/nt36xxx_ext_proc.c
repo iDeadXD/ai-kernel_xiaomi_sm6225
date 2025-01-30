@@ -28,7 +28,6 @@
 #define NVT_RAW "nvt_raw"
 #define NVT_DIFF "nvt_diff"
 #define NVT_PEN_DIFF "nvt_pen_diff"
-#define LCT_TP_DATA_DUMP "tp_data_dump"
 
 #define SPI_TANSFER_LENGTH  256
 #define BUS_TRANSFER_LENGTH  256
@@ -52,7 +51,6 @@ static struct proc_dir_entry *NVT_proc_raw_entry;
 static struct proc_dir_entry *NVT_proc_diff_entry;
 static struct proc_dir_entry *NVT_proc_pen_diff_entry;
 static int32_t diff_data[2048] = {0};
-static struct proc_dir_entry *LCT_proc_tp_data_dump_entry;
 
 /*******************************************************
 Description:
@@ -478,99 +476,6 @@ void nvt_read_diff_mdata(uint32_t xdata_addr, uint32_t xdata_btn_addr)
 	nvt_set_page(ts->mmap->EVENT_BUF_ADDR);
 }
 
-/*20211028 wugang add tp_data_dump start */
-static int32_t c_tp_data_dump_show(struct seq_file *m, void *v)
-{
-	int32_t i = 0;
-	int32_t j = 0;
-
-	seq_printf(m, "\nRAW DATA\n");
-#if 1 //0
-	for (i = 0; i < ts->y_num; i++) {
-		for (j = 0; j < ts->x_num; j++) {
-			seq_printf(m, "%6d", xdata[ts->x_num * i + j]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //90
-	for (i = 0; i < ts->x_num; i++) {
-		for (j = 0; j < ts->y_num; j++) {
-			seq_printf(m, "%6d", xdata[ts->x_num * j + (ts->x_num - 1 - i)]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //180
-	for (i = 0; i < ts->y_num; i++) {
-		for (j = 0; j < ts->x_num; j++) {
-			seq_printf(m, "%6d", xdata[ts->x_num * (ts->y_num - 1 - i) + j]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //270
-	for (i = 0; i < ts->x_num; i++) {
-		for (j = 0; j < ts->y_num; j++) {
-			seq_printf(m, "%6d", xdata[ts->x_num * (ts->y_num - 1 - j) + i]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-
-
-#if TOUCH_KEY_NUM > 0
-	for (i = 0; i < TOUCH_KEY_NUM; i++) {
-		seq_printf(m, "%6d", xdata[ts->x_num * ts->y_num + i]);
-	}
-	seq_puts(m, "\n");
-#endif
-
-	seq_printf(m, "\nDIFF DATA\n");
-#if 1 //0
-	for (i = 0; i < ts->y_num; i++) {
-		for (j = 0; j < ts->x_num; j++) {
-			seq_printf(m, "%6d", diff_data[ts->x_num * i + j]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //90
-	for (i = 0; i < ts->x_num; i++) {
-		for (j = 0; j < ts->y_num; j++) {
-			seq_printf(m, "%6d", diff_data[ts->x_num * j + (ts->x_num - 1 - i)]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //180
-	for (i = 0; i < ts->y_num; i++) {
-		for (j = 0; j < ts->x_num; j++) {
-			seq_printf(m, "%6d", diff_data[ts->x_num * (ts->y_num - 1 - i) + j]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-#if 0 //270
-	for (i = 0; i < ts->x_num; i++) {
-		for (j = 0; j < ts->y_num; j++) {
-			seq_printf(m, "%6d", diff_data[ts->x_num * (ts->y_num - 1 - j) + i]);
-		}
-		seq_puts(m, "\n");
-	}
-#endif
-
-#if TOUCH_KEY_NUM > 0
-	for (i = 0; i < TOUCH_KEY_NUM; i++) {
-		seq_printf(m, "%6d", diff_data[ts->x_num * ts->y_num + i]);
-	}
-	seq_puts(m, "\n");
-#endif
-
-	return 0;
-}
-
-
 /*******************************************************
 Description:  wugang 2021
 	Novatek touchscreen /proc/tp_data_dump open function.
@@ -703,13 +608,6 @@ const struct seq_operations nvt_pen_diff_seq_ops = {
 	.next   = c_next,
 	.stop   = c_stop,
 	.show   = c_pen_1d_diff_show
-};
-
-const struct seq_operations lct_tp_data_dump_seq_ops = {
-	.start  = c_start,
-	.next   = c_next,
-	.stop   = c_stop,
-	.show   = c_tp_data_dump_show
 };
 
 /*******************************************************
@@ -995,64 +893,6 @@ static const struct file_operations nvt_pen_diff_fops = {
 	.release = seq_release,
 };
 
-/* 20211028 wugang add tp_data_dump start  */
-static int32_t lct_tp_data_dump_open(struct inode *inode, struct file *file)
-{
-	if (mutex_lock_interruptible(&ts->lock)) {
-		return -ERESTARTSYS;
-	}
-
-	NVT_LOG("++\n");
-
-#if NVT_TOUCH_ESD_PROTECT
-	nvt_esd_check_enable(false);
-#endif /* #if NVT_TOUCH_ESD_PROTECT */
-
-	if (nvt_clear_fw_status()) {
-		mutex_unlock(&ts->lock);
-		return -EAGAIN;
-	}
-
-	nvt_change_mode(TEST_MODE_2);
-
-	if (nvt_check_fw_status()) {
-		mutex_unlock(&ts->lock);
-		return -EAGAIN;
-	}
-
-	if (nvt_get_fw_info()) {
-		mutex_unlock(&ts->lock);
-		return -EAGAIN;
-	}
-
-	if (nvt_get_fw_pipe() == 0)
-		nvt_read_mdata(ts->mmap->RAW_PIPE0_ADDR, ts->mmap->RAW_BTN_PIPE0_ADDR);
-	else
-		nvt_read_mdata(ts->mmap->RAW_PIPE1_ADDR, ts->mmap->RAW_BTN_PIPE1_ADDR);
-
-	if (nvt_get_fw_pipe() == 0)
-		nvt_read_diff_mdata(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_ADDR);
-	else
-		nvt_read_diff_mdata(ts->mmap->DIFF_PIPE1_ADDR, ts->mmap->DIFF_BTN_PIPE1_ADDR);
-
-	nvt_change_mode(NORMAL_MODE);
-
-	mutex_unlock(&ts->lock);
-
-	NVT_LOG("--\n");
-
-	return seq_open(file, &lct_tp_data_dump_seq_ops);
-}
-
-static const struct file_operations lct_tp_data_dump_fops = {
-	.owner = THIS_MODULE,
-	.open = lct_tp_data_dump_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = seq_release,
-};
-/* 20211028 wugang add tp_data_dump end  */
-
 /*******************************************************
 Description:
 	Novatek touchscreen extra function proc. file node
@@ -1105,14 +945,6 @@ int32_t nvt_extra_proc_init(void)
 		}
 	}
 
-	LCT_proc_tp_data_dump_entry = proc_create(LCT_TP_DATA_DUMP, 0444, NULL, &lct_tp_data_dump_fops);
-	if (LCT_proc_tp_data_dump_entry == NULL) {
-		NVT_ERR("create proc/%s Failed!\n", LCT_TP_DATA_DUMP);
-		return -ENOMEM;
-	} else {
-		NVT_LOG("create proc/%s Succeeded!\n", LCT_TP_DATA_DUMP);
-	}
-
 	return 0;
 }
 
@@ -1157,13 +989,5 @@ void nvt_extra_proc_deinit(void)
 			NVT_LOG("Removed /proc/%s\n", NVT_PEN_DIFF);
 		}
 	}
-
-	/*2019.12.10 longcheer taocheng add for charger extra proc end*/
-	if (LCT_proc_tp_data_dump_entry != NULL) {
-		remove_proc_entry(LCT_TP_DATA_DUMP, NULL);
-		LCT_proc_tp_data_dump_entry = NULL;
-		NVT_LOG("Removed /proc/%s\n", LCT_TP_DATA_DUMP);
-	}
-
 }
 #endif
