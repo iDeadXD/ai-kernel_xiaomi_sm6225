@@ -642,7 +642,6 @@ static int smb1351_masked_write(struct smb1351_charger *chip, int reg,
 	return 0;
 }
 
-#if CONFIG_TOUCHSCREEN_COMMON
 typedef struct touchscreen_usb_piugin_data{
 		bool valid;
 		bool usb_plugged_in;
@@ -650,7 +649,6 @@ typedef struct touchscreen_usb_piugin_data{
 		} touchscreen_usb_piugin_data_t;
 touchscreen_usb_piugin_data_t g_touchscreen_usb_pulgin = {0};
 EXPORT_SYMBOL(g_touchscreen_usb_pulgin);
-#endif
 
 static int smb1351_enable_volatile_writes(struct smb1351_charger *chip)
 {
@@ -1580,12 +1578,10 @@ static int smb1351_usb_get_property(struct power_supply *psy,
 		else
 			val->intval = 0;
 		pr_err("%s:usb_online=%d\n",__func__,val->intval);
-		#if CONFIG_TOUCHSCREEN_COMMON
 			g_touchscreen_usb_pulgin.usb_plugged_in = val->intval;
 			if(g_touchscreen_usb_pulgin.valid){
 				g_touchscreen_usb_pulgin.event_callback();
 			}
-		#endif
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = chip->charger_type;
