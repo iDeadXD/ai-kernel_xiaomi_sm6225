@@ -115,20 +115,6 @@
 #define FTS_PATCH_COMERR_PM                     0
 #define FTS_TIMEOUT_COMERR_PM                   700
 
-
- // include  longcheer header
-#include "../lct_tp_info.h"
-#include "../lct_tp_selftest.h"
-#include "../lct_tp_gesture.h"
-#if LCT_TP_WORK_EN
-#include "../lct_tp_work.h"
-#endif
-
-
-#if LCT_TP_GRIP_AREA_EN
-#include "../lct_tp_grip_area.h"
-#endif
-
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
 *****************************************************************************/
@@ -254,27 +240,7 @@ int fts_gesture_readdata(struct fts_ts_data *ts_data, u8 *data);
 int fts_gesture_suspend(struct fts_ts_data *ts_data);
 int fts_gesture_resume(struct fts_ts_data *ts_data);
 
-
-/* Longcheer procfs */
-int lct_create_procfs(struct fts_ts_data *ts_data);
-int lct_remove_procfs(struct fts_ts_data *ts_data);
-
-/* Longcheer get firmware version */
-int lct_fts_get_tpfwver(const char *cmd);
-
-/* Longcheer set gesture mode */
 int lct_fts_tp_gesture_callback(bool flag);
-
-/* FTS TEST */
-#if FTS_TEST_EN
-int fts_test_init(struct fts_ts_data *ts_data);
-int fts_test_exit(struct fts_ts_data *ts_data);
-int lct_tp_selftest_all(void);
-#endif
-
-/* Apk and functions */
-int fts_create_apk_debug_channel(struct fts_ts_data *);
-void fts_release_apk_debug_channel(struct fts_ts_data *);
 
 /* ADB functions */
 int fts_create_sysfs(struct fts_ts_data *ts_data);
@@ -289,12 +255,6 @@ int fts_esdcheck_proc_busy(bool proc_debug);
 int fts_esdcheck_set_intr(bool intr);
 int fts_esdcheck_suspend(void);
 int fts_esdcheck_resume(void);
-#endif
-
-/* Production test */
-#if FTS_TEST_EN
-int fts_test_init(struct fts_ts_data *ts_data);
-int fts_test_exit(struct fts_ts_data *ts_data);
 #endif
 
 #if LCT_TP_USB_PLUGIN
