@@ -237,16 +237,6 @@
 #define FTS_GET_MODULE_NUM                      0
 
 /*
- * enable/disable touchpad
- */
-#define LCT_TP_WORK_EN                          1
-
-/*
-* enable/disable 'grip area' feature
-*/
-#define LCT_TP_GRIP_AREA_EN                     1
-
-/*
  * enable tp usb plugin feature
  */
 #define LCT_TP_USB_PLUGIN                       1
