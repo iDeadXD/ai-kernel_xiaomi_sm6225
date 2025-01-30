@@ -1645,7 +1645,7 @@ static int fts_ts_suspend(struct device *dev)
 #endif
         }
         /* touch reset gpio pull down */
-        gpio_direction_output(fts_data->pdata->reset_gpio, 0 );
+        // gpio_direction_output(fts_data->pdata->reset_gpio, 0 );
     }
 
     fts_release_all_finger();
