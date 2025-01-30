@@ -35,21 +35,6 @@
 
 #include "nt36xxx_mem_map.h"
 
-#ifdef CONFIG_MTK_SPI
-/* Please copy mt_spi.h file under mtk spi driver folder */
-#include "mt_spi.h"
-#endif
-
-#ifdef CONFIG_SPI_MT65XX
-#include <linux/platform_data/spi-mt65xx.h>
-#endif
-
-// include longcheer header
-#include "../lct_tp_info.h"
-#include "../lct_tp_selftest.h"
-#include "../lct_tp_work.h"
-#include "../lct_tp_grip_area.h"
-#include "../lct_tp_gesture.h"
 #define NVT_DEBUG 1
 
 //---GPIO number---
@@ -108,7 +93,6 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 //---Customerized func.---
 #define NVT_TOUCH_PROC 1
 #define NVT_TOUCH_EXT_PROC 1
-#define NVT_TOUCH_MP 0
 #define MT_PROTOCOL_B 1
 #define WAKEUP_GESTURE 1
 #if WAKEUP_GESTURE
@@ -127,12 +111,6 @@ extern const uint16_t gesture_key_array[];
 #define NVT_TOUCH_WDT_RECOVERY 1
 
 #define CHECK_PEN_DATA_CHECKSUM 0
-
-//enable tp work feature
-#define LCT_TP_WORK_EN      1
-
-//enable tp grip area feature
-#define LCT_TP_GRIP_AREA_EN 1
 
 /*2019.12.06 longcheer taocheng add for charger mode begin*/
 /*functions description*/
@@ -207,12 +185,6 @@ struct nvt_ts_data {
 //	struct regulator *pwr_ibb; /* VSN -5V */
 #endif
 //struct mutex reg_lock;
-#ifdef CONFIG_MTK_SPI
-	struct mt_chip_conf spi_ctrl;
-#endif
-#ifdef CONFIG_SPI_MT65XX
-    struct mtk_chip_config spi_ctrl;
-#endif
 	struct workqueue_struct *event_wq;
 	struct work_struct suspend_work;
 	struct work_struct resume_work;
