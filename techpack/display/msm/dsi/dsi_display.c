@@ -5305,7 +5305,7 @@ static struct attribute *display_fs_attrs[] = {
 #endif
 	NULL,
 };
-#ifdef CONFIG_TARGET_PROJECT_K7T
+
 static struct attribute_group display_fs_attrs_group = {
 	.attrs = display_fs_attrs,
 };
@@ -5322,7 +5322,6 @@ static int dsi_display_sysfs_init(struct dsi_display *display)
 	return rc;
 
 }
-#endif
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
 static char dcs_cmd[2] = {0x00, 0x00}; /* DTYPE_DCS_READ */
@@ -5539,13 +5538,11 @@ static int dsi_display_bind(struct device *dev,
 		goto error;
 	}
 
-#ifdef CONFIG_TARGET_PROJECT_K7T
 	rc = dsi_display_sysfs_init(display);
 	if (rc) {
 		DSI_ERR("[%s] sysfs init failed, rc=%d\n", display->name, rc);
 		goto error;
 	}
-#endif
 
 	atomic_set(&display->clkrate_change_pending, 0);
 	display->cached_clk_rate = 0;
