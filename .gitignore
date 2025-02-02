@@ -138,3 +138,10 @@ kernel/configs/android-*.cfg
 
 # vendor device tree directories
 arch/arm64/boot/dts/vendor/
+AnyKernel3/
+clang-llvm/
+error.log
+gcc32/
+gcc64/
+out/
+scripts/ufdt/
