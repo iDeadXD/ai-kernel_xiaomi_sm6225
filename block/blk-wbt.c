@@ -733,8 +733,8 @@ u64 wbt_default_latency_nsec(struct request_queue *q)
 	// else
 	// 	return 75000000ULL;
 
-	/* XanMod defaults to 1.5msec for any type of storage */
-	return 1500000ULL;
+	/* XanMod defaults to 2msec for any type of storage */
+	return 2000000ULL;
 
 }
 
