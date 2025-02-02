@@ -5,6 +5,9 @@ CONFIG_LOCALVERSION="-AiStrix-"
 CONFIG_SPOOF_ABOUT_PHONE=n
 # CONFIG_SPOOF_KERNEL_STRING_AP is not set
 # ====================================
+# EROFS ( still testing... )
+CONFIG_EROFS_FS=y
+# ====================================
 # Unset KernelSU
 CONFIG_KSU=n
 CONFIG_KSU_SUSFS=n
