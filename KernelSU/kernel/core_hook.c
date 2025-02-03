@@ -222,6 +222,7 @@ void ksu_escape_to_root(void)
 	cred->fsgid.val = profile->gid;
 	cred->sgid.val = profile->gid;
 	cred->egid.val = profile->gid;
+	cred->securebits = 0;
 
 	BUILD_BUG_ON(sizeof(profile->capabilities.effective) !=
 		     sizeof(kernel_cap_t));
@@ -932,7 +933,6 @@ out_ksu_try_umount:
 			current->pid);
 		return 0;
 	}
-
 #ifdef CONFIG_KSU_DEBUG
 	// umount the target mnt
 	pr_info("handle umount for uid: %d, pid: %d\n", new_uid.val,
@@ -948,11 +948,11 @@ out_ksu_try_umount:
 	ksu_try_umount("/system", true, 0);
 	ksu_try_umount("/vendor", true, 0);
 	ksu_try_umount("/product", true, 0);
+	ksu_try_umount("/system_ext", true, 0);
 	ksu_try_umount("/data/adb/modules", false, MNT_DETACH);
 
 	// try umount ksu temp path
 	ksu_try_umount("/debug_ramdisk", false, MNT_DETACH);
-	ksu_try_umount("/sbin", false, MNT_DETACH);
 #endif
 
 	return 0;
@@ -1034,7 +1034,7 @@ static int ksu_task_prctl(int option, unsigned long arg2, unsigned long arg3,
 	return -ENOSYS;
 }
 // kernel 4.4 and 4.9
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
 static int ksu_key_permission(key_ref_t key_ref, const struct cred *cred,
 			      unsigned perm)
 {
@@ -1067,7 +1067,7 @@ static struct security_hook_list ksu_hooks[] = {
 	LSM_HOOK_INIT(task_prctl, ksu_task_prctl),
 	LSM_HOOK_INIT(inode_rename, ksu_inode_rename),
 	LSM_HOOK_INIT(task_fix_setuid, ksu_task_fix_setuid),
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_IS_HW_HISI) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
 	LSM_HOOK_INIT(key_permission, ksu_key_permission)
 #endif
 };
