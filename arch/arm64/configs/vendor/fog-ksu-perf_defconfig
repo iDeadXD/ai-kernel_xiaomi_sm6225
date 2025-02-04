@@ -13,6 +13,9 @@ CONFIG_EROFS_FS_POSIX_ACL=y
 CONFIG_EROFS_FS_SECURITY=y
 CONFIG_EROFS_FS_ZIP=y
 # ====================================
+# BORE scheduler
+CONFIG_SCHED_BORE=y
+# ====================================
 # MGLRU
 CONFIG_LRU_GEN=y
 CONFIG_LRU_GEN_ENABLED=y
