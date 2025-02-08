@@ -71,27 +71,7 @@ extern touchscreen_usb_plugin_data_t g_touchscreen_usb_pulgin;
 *****************************************************************************/
 struct fts_ts_data *fts_data;
 static bool delay_gesture = false;
-extern void set_fts_ts_variant(bool en);
-extern void set_lcd_reset_gpio_keep_high(bool en);
-
-int lct_fts_tp_gesture_callback(bool flag)
-{
-    struct fts_ts_data *ts_data = fts_data;
-    if (ts_data->suspended) {
-        delay_gesture = true;
-        FTS_INFO("The gesture mode will be %s the next time you wakes up.", flag?"enabled":"disabled");
-        return -1;
-    }
-    //check this funct
-    set_lcd_reset_gpio_keep_high(flag);
-    if (flag) {
-            ts_data->gesture_mode = ENABLE;
-	}
-    else {
-        ts_data->gesture_mode = DISABLE;
-    }
-    return 0;
-}
+static bool g_regulator_status;
 
 #if LCT_TP_USB_PLUGIN
 void fts_ts_usb_event_callback(void)
@@ -1637,7 +1617,7 @@ static int fts_ts_suspend(struct device *dev)
 #endif
         }
         /* touch reset gpio pull down */
-        // gpio_direction_output(fts_data->pdata->reset_gpio, 0 );
+        gpio_direction_output(fts_data->pdata->reset_gpio, 0 );
     }
 
     fts_release_all_finger();
@@ -1684,7 +1664,6 @@ static int fts_ts_resume(struct device *dev)
     ts_data->suspended = false;
 
     if (delay_gesture) {
-        lct_fts_tp_gesture_callback(!ts_data->gesture_mode);
         delay_gesture = false;
     }
 
@@ -1767,7 +1746,6 @@ static int fts_ts_probe(struct spi_device *spi)
     }
 
     FTS_INFO("Touch Screen(SPI BUS) driver prboe successfully");
-    set_fts_ts_variant(true);
     return 0;
 }
 
