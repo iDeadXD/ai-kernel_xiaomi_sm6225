@@ -103,11 +103,6 @@ static void nvt_ts_early_suspend(struct early_suspend *h);
 static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
 
-#if WAKEUP_GESTURE
-extern void set_lcd_reset_gpio_keep_high(bool en);
-static int lct_nvt_tp_gesture_callback(bool flag);
-#endif
-
 uint32_t ENG_RST_ADDR  = 0x7FFF80;
 uint32_t SWRST_N8_ADDR = 0; //read from dtsi
 uint32_t SPI_RD_FAST_ADDR = 0;	//read from dtsi
@@ -147,11 +142,17 @@ int nvt_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int co
 {
 	NVT_LOG("Enter. type = %u, code = %u, value = %d\n", type, code, value);
 	if (type == EV_SYN && code == SYN_CONFIG) {
+		if (!bTouchIsAwake) {
+			ts->delay_gesture = true;
+		}
+
 		if (value == WAKEUP_OFF) {
-			lct_nvt_tp_gesture_callback(false);
+			ts->is_gesture_mode = false;
+			NVT_LOG("disable gesture mode\n");
                 }
 		else if (value == WAKEUP_ON) {
-			lct_nvt_tp_gesture_callback(true);
+			ts->is_gesture_mode = true;
+			NVT_LOG("enable gesture mode\n");
                 }
 	}
 	NVT_LOG("Exit\n");
@@ -176,7 +177,8 @@ static ssize_t double_tap_store(struct kobject *kobj,
     rc = kstrtoint(buf, 10, &val);
     if (rc)
     return -EINVAL;
-    lct_nvt_tp_gesture_callback(!!val);
+
+    ts->is_gesture_mode = !!val;
     return count;
 }
 static struct tp_common_ops double_tap_ops = {
@@ -1692,146 +1694,6 @@ out:
 	return ret;
 }
 
-#if WAKEUP_GESTURE
-/*******************************************************
-Description:
-	Novatek touchscreen driver get regulator function.
-
-return:
-	Executive outcomes. 0---succeed. negative---failed
-*******************************************************/
-/*
-static int32_t nvt_ts_get_regulator(bool get)
-{
-	int32_t ret = 0;
-
-	NVT_LOG("get/put regulator : %d \n", get);
-	if (!get) {
-		goto put_regulator;
-	}
-
-	ts->pwr_vdd = regulator_get(&ts->client->dev, "touch_vddio");
-	if (IS_ERR_OR_NULL(ts->pwr_vdd)) {
-		ret = PTR_ERR(ts->pwr_vdd);
-		NVT_ERR("Failed to get vdd regulator");
-		goto put_regulator;
-	} else {
-        if (regulator_count_voltages(ts->pwr_vdd) > 0) {
-            ret = regulator_set_voltage(ts->pwr_vdd,
-                                        1800000,
-                                        1800000);
-            if (ret) {
-                NVT_ERR("vddio regulator set_vtg failed,ret=%d", ret);
-                goto put_regulator;
-            }
-        }
-	}
-
-	ts->pwr_lab = regulator_get(&ts->client->dev, "touch_lab");
-	if (IS_ERR_OR_NULL(ts->pwr_lab)) {
-		ret = PTR_ERR(ts->pwr_lab);
-		NVT_ERR("Failed to get lab regulator");
-		goto put_regulator;
-	}
-
-	ts->pwr_ibb = regulator_get(&ts->client->dev, "touch_ibb");
-	if (IS_ERR_OR_NULL(ts->pwr_ibb)) {
-		ret = PTR_ERR(ts->pwr_ibb);
-		NVT_ERR("Failed to get ibb regulator");
-		goto put_regulator;
-	}
-
-	return 0;
-
-put_regulator:
-	if (ts->pwr_vdd) {
-		regulator_put(ts->pwr_vdd);
-		ts->pwr_vdd = NULL;
-	}
-
-	if (ts->pwr_lab) {
-		regulator_put(ts->pwr_lab);
-		ts->pwr_lab = NULL;
-	}
-
-	if (ts->pwr_ibb) {
-		regulator_put(ts->pwr_ibb);
-		ts->pwr_ibb = NULL;
-	}
-
-	return ret;
-}
-*/
-
-/*******************************************************
-Description:
-	Novatek touchscreen driver enable regulator function.
-
-return:
-	Executive outcomes. 0---succeed. negative---failed
-*******************************************************/
-/*
-static int32_t nvt_ts_enable_regulator(bool en)
-{
-	static bool status = false;
-	int32_t ret = 0;
-
-	if (status == en) {
-		NVT_LOG("Already %s touch regulator", en?"enable":"disable");
-		return 0;
-	}
-	status = en;
-	NVT_LOG("%s touch regulator", en?"enable":"disable");
-
-	if (!en) {
-		goto disable_ibb_regulator;
-	}
-
-	if (ts->pwr_vdd) {
-		ret = regulator_enable(ts->pwr_vdd);
-		if (ret < 0) {
-			NVT_ERR("Failed to enable vdd regulator");
-			goto exit;
-		}
-	}
-
-	if (ts->pwr_lab) {
-		ret = regulator_enable(ts->pwr_lab);
-		if (ret < 0) {
-			NVT_ERR("Failed to enable lab regulator");
-			goto disable_vdd_regulator;
-		}
-	}
-
-	if (ts->pwr_ibb) {
-		ret = regulator_enable(ts->pwr_ibb);
-		if (ret < 0) {
-			NVT_ERR("Failed to enable ibb regulator");
-			goto disable_lab_regulator;
-		}
-	}
-
-	return 0;
-
-disable_ibb_regulator:
-	if (ts->pwr_ibb)
-		regulator_disable(ts->pwr_ibb);
-
-disable_lab_regulator:
-	if (ts->pwr_lab)
-		regulator_disable(ts->pwr_lab);
-
-disable_vdd_regulator:
-	if (ts->pwr_vdd)
-		regulator_disable(ts->pwr_vdd);
-
-exit:
-	return ret;
-}
-
-*/
-#endif
-
 #if defined(CONFIG_DRM_PANEL)
 static int nvt_ts_check_dt(struct device_node *np)
 {
@@ -1963,22 +1825,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		goto err_spi_setup;
 	}
 
-/*
-#if WAKEUP_GESTURE
-	ret = nvt_ts_get_regulator(true);
-	if (ret < 0) {
-		NVT_ERR("Failed to get register\n");
-		goto err_get_regulator;
-	}
-
-	ret = nvt_ts_enable_regulator(false);//default disable regulator
-	if (ret < 0) {
-		NVT_ERR("Failed to enable regulator\n");
-		goto err_enable_regulator;
-	}
-#endif
-
-*/
 	//---request and config GPIOs---
 	ret = nvt_gpio_config(ts);
 	if (ret) {
@@ -2323,15 +2169,7 @@ err_chipvertrim_failed:
 	mutex_destroy(&ts->lock);
 	nvt_gpio_deconfig(ts);
 err_gpio_config_failed:
-/*
-#if WAKEUP_GESTURE
-	nvt_ts_enable_regulator(false);
-err_enable_regulator:
-	nvt_ts_get_regulator(false);
-err_get_regulator:
-#endif
 
-*/
 err_spi_setup:
 err_ckeck_full_duplex:
 	spi_set_drvdata(client, NULL);
@@ -2417,13 +2255,6 @@ static int32_t nvt_ts_remove(struct spi_device *client)
 	mutex_destroy(&ts->xbuf_lock);
 	mutex_destroy(&ts->lock);
 
-/*
-#if WAKEUP_GESTURE
-	nvt_ts_enable_regulator(false);
-	nvt_ts_get_regulator(false);
-#endif
-
-*/
 	nvt_gpio_deconfig(ts);
 
 	if (ts->pen_support) {
@@ -2668,7 +2499,6 @@ static int32_t nvt_ts_resume(struct device *dev)
 
 #if WAKEUP_GESTURE
 	if (ts->delay_gesture) {
-		lct_nvt_tp_gesture_callback(!ts->is_gesture_mode);
 		ts->delay_gesture = false;
 	}
 #endif
@@ -2683,31 +2513,6 @@ static int32_t nvt_ts_resume(struct device *dev)
 
 	return 0;
 }
-
-#if WAKEUP_GESTURE
-int lct_nvt_tp_gesture_callback(bool flag)
-{
-	if (!bTouchIsAwake) {
-		ts->delay_gesture = true;
-		NVT_LOG("The gesture mode will be %s the next time you wakes up.\n", flag?"enabled":"disbaled");
-		return 0;
-	}
-	if (flag) {
-		ts->is_gesture_mode = true;
-	//	if(nvt_ts_enable_regulator(true) < 0)
-	//		NVT_ERR("Failed to enable regulator\n");
-			set_lcd_reset_gpio_keep_high(true);
-		NVT_LOG("enable gesture mode\n");
-	} else {
-		ts->is_gesture_mode = false;
-	//	if(nvt_ts_enable_regulator(false) < 0)
-	//		NVT_ERR("Failed to disable regulator\n");
-			set_lcd_reset_gpio_keep_high(false);
-		NVT_LOG("disable gesture mode\n");
-	}
-	return 0;
-}
-#endif
 
 #if defined(CONFIG_FB)
 #if defined(CONFIG_DRM_PANEL)
