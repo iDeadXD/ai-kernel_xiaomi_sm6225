@@ -106,17 +106,21 @@ static struct fts_gesture_st fts_gesture_data;
 static ssize_t double_tap_show(struct kobject *kobj,
                                struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", fts_data->gesture_mode);
+	struct fts_ts_data *ts_data = fts_data;
+    return sprintf(buf, "%d\n", ts_data->gesture_mode);
 }
 static ssize_t double_tap_store(struct kobject *kobj,
                                 struct kobj_attribute *attr, const char *buf,
                                 size_t count)
 {
 	int rc, val;
+    struct fts_ts_data *ts_data = fts_data;
+
 	rc = kstrtoint(buf, 10, &val);
 	if (rc)
 	return -EINVAL;
-	lct_fts_tp_gesture_callback(!!val);
+
+	ts_data->gesture_mode = !!val;
 	return count;
 }
 static struct tp_common_ops double_tap_ops = {
@@ -151,10 +155,10 @@ static ssize_t fts_gesture_store(
     mutex_lock(&ts_data->input_dev->mutex);
     if (FTS_SYSFS_ECHO_ON(buf)) {
         FTS_DEBUG("enable gesture");
-        lct_fts_tp_gesture_callback(true);
+        ts_data->gesture_mode = ENABLE;
     } else if (FTS_SYSFS_ECHO_OFF(buf)) {
         FTS_DEBUG("disable gesture");
-        lct_fts_tp_gesture_callback(false);
+        ts_data->gesture_mode = DISABLE;
     }
     mutex_unlock(&ts_data->input_dev->mutex);
 
@@ -435,12 +439,13 @@ int fts_gesture_resume(struct fts_ts_data *ts_data)
 #define WAKEUP_ON 5
 int fts_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int code, int value)
 {
+    struct fts_ts_data *ts_data = fts_data;
     FTS_INFO("Enter. type = %u, code = %u, value = %d", type, code, value);
     if (type == EV_SYN && code == SYN_CONFIG) {
         if (value == WAKEUP_OFF)
-            lct_fts_tp_gesture_callback(false);
+            ts_data->gesture_mode = DISABLE;
         else if (value == WAKEUP_ON)
-            lct_fts_tp_gesture_callback(true);
+            ts_data->gesture_mode = ENABLE;
     }
     FTS_INFO("Exit");
     return 0;
