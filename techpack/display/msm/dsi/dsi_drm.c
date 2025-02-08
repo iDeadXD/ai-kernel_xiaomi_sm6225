@@ -215,9 +215,11 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+	struct drm_notify_data g_notify_data;
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	struct drm_device *dev = bridge->dev;
 	int event = 0;
-        struct drm_notify_data g_notify_data;
 
 	/*add for thermal begin*/
 	if (dev->doze_state == DRM_BLANK_POWERDOWN) {
@@ -225,8 +227,13 @@ static void dsi_bridge_pre_enable(struct drm_bridge *bridge)
 		pr_err("%s power on from power off\n", __func__);
 	}
 	event = dev->doze_state;
-	g_notify_data.data = &event;
 	/*add for thermal end*/
+#endif
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	int event = DRM_BLANK_UNBLANK;
+#endif
+
+	g_notify_data.data = &event;
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
@@ -445,9 +452,11 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 {
 	int rc = 0;
 	struct dsi_bridge *c_bridge = to_dsi_bridge(bridge);
+	struct drm_notify_data g_notify_data;
+
+#ifdef CONFIG_TARGET_PROJECT_K7T
 	struct drm_device *dev = bridge->dev;
 	int event = 0;
-        struct drm_notify_data g_notify_data;
 
 	/*add for thermal begin*/
 	if (dev->doze_state == DRM_BLANK_UNBLANK) {
@@ -455,8 +464,13 @@ static void dsi_bridge_post_disable(struct drm_bridge *bridge)
 		pr_err("%s wrong doze state\n", __func__);
 	}
 	event = dev->doze_state;
-	g_notify_data.data = &event;
 	/*add for thermal end*/
+#endif
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	int event = DRM_BLANK_POWERDOWN;
+#endif
+
+	g_notify_data.data = &event;
 
 	if (!bridge) {
 		DSI_ERR("Invalid params\n");
