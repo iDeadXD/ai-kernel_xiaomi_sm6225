@@ -276,7 +276,6 @@ static int dsi_panel_gpio_request(struct dsi_panel *panel)
 		}
 	}
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	if (gpio_is_valid(r_config->disp_en_gpio)) {
 		rc = gpio_request(r_config->disp_en_gpio, "disp_en_gpio");
 		if (rc) {
@@ -284,25 +283,6 @@ static int dsi_panel_gpio_request(struct dsi_panel *panel)
 			goto error_release_reset;
 		}
 	}
-#endif /* end */
-
-#ifdef CONFIG_TARGET_PROJECT_C3Q
-	if (gpio_is_valid(r_config->lcm_enn_gpio)) {
-		rc = gpio_request(r_config->lcm_enn_gpio, "lcm_enn_gpio");
-		if (rc) {
-			DSI_ERR("request for lcm_enn_gpio failed, rc=%d\n", rc);
-			goto error_release_lcm_enn;
-		}
-	}
-
-	if (gpio_is_valid(r_config->lcm_enp_gpio)) {
-		rc = gpio_request(r_config->lcm_enp_gpio, "lcm_enp_gpio");
-		if (rc) {
-			DSI_ERR("request for lcm_enp_gpio failed, rc=%d\n", rc);
-			goto error_release_lcm_enp;
-		}
-	}
-#endif
 
 	if (gpio_is_valid(panel->bl_config.en_gpio)) {
 		rc = gpio_request(panel->bl_config.en_gpio, "bklt_en_gpio");
@@ -337,14 +317,6 @@ error_release_mode_sel:
 error_release_disp_en:
 	if (gpio_is_valid(r_config->disp_en_gpio))
 		gpio_free(r_config->disp_en_gpio);
-#ifdef CONFIG_TARGET_PROJECT_C3Q
-error_release_lcm_enn:
-	if (gpio_is_valid(r_config->lcm_enn_gpio))
-		gpio_free(r_config->lcm_enn_gpio);
-error_release_lcm_enp:
-	if (gpio_is_valid(r_config->lcm_enp_gpio))
-		gpio_free(r_config->lcm_enp_gpio);
-#endif
 error_release_reset:
 	if (gpio_is_valid(r_config->reset_gpio))
 		gpio_free(r_config->reset_gpio);
@@ -360,21 +332,17 @@ static int dsi_panel_gpio_release(struct dsi_panel *panel)
 	if (gpio_is_valid(r_config->reset_gpio))
 		gpio_free(r_config->reset_gpio);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	if (gpio_is_valid(r_config->disp_en_gpio))
 		gpio_free(r_config->disp_en_gpio);
-#endif /* end */
 
 	if (gpio_is_valid(panel->bl_config.en_gpio))
 		gpio_free(panel->bl_config.en_gpio);
 
-#ifdef CONFIG_TARGET_PROJECT_C3Q
 	if (gpio_is_valid(r_config->lcm_enn_gpio))
 		gpio_free(r_config->lcm_enn_gpio);
 
 	if (gpio_is_valid(r_config->lcm_enp_gpio))
 		gpio_free(r_config->lcm_enp_gpio);
-#endif
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_free(panel->reset_config.lcd_mode_sel_gpio);
@@ -416,7 +384,6 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio)) {
 		rc = gpio_direction_output(panel->reset_config.disp_en_gpio, 1);
 		if (rc) {
@@ -424,26 +391,27 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 			goto exit;
 		}
 	}
-#endif /* end */
-
 #ifdef CONFIG_TARGET_PROJECT_C3Q
-	if (gpio_is_valid(panel->reset_config.lcm_enp_gpio)) {
-		rc = gpio_direction_output(panel->reset_config.lcm_enp_gpio, 1);
+	if (gpio_is_valid(r_config->lcm_enp_gpio)) {
+		rc = gpio_direction_output(r_config->lcm_enp_gpio, 1);
 		if (rc) {
-			pr_err("unable to set dir for config->lcm_enp_gpio rc=%d\n", rc);
+			pr_err("unable to set dir forr_config->lcm_enp_gpio rc=%d\n", rc);
 			goto exit;
 		}
 	}
 
-	if (gpio_is_valid(panel->reset_config.lcm_enn_gpio)) {
-		rc = gpio_direction_output(panel->reset_config.lcm_enn_gpio, 1);
+	msleep(5);
+
+	if (gpio_is_valid(r_config->lcm_enn_gpio)) {
+		rc = gpio_direction_output(r_config->lcm_enn_gpio, 1);
 		if (rc) {
-			pr_err("unable to set dir for config->lcm_enn_gpio rc=%d\n", rc);
+			pr_err("unable to set dir forr_config->lcm_enn_gpio rc=%d\n", rc);
 			goto exit;
 		}
 	}
+
+	msleep(5);
 #endif
-
 	usleep_range(10000, 10010);
 	if (r_config->count) {
 		rc = gpio_direction_output(r_config->reset_gpio,
@@ -500,7 +468,6 @@ exit:
 	return rc;
 }
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 {
 	int rc = 0;
@@ -521,7 +488,15 @@ static int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
 
 	return rc;
 }
-#endif /* end */
+
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+static bool fts_ts_variant = false;
+void set_fts_ts_variant(bool en)
+{
+	fts_ts_variant = en;
+}
+EXPORT_SYMBOL(set_fts_ts_variant);
+#endif
 
 static int dsi_panel_power_on(struct dsi_panel *panel)
 {
@@ -534,6 +509,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 // #ifdef CONFIG_TARGET_PROJECT_K7T
 	int power_status = DRM_PANEL_BLANK_UNBLANK;
 	struct drm_panel_notifier notifier_data;
+#endif
 
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
@@ -547,10 +523,6 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to set pinctrl, rc=%d\n", panel->name, rc);
 		goto error_disable_vregs;
 	}
-#endif
-	/* If LP11_INIT is set, skip panel reset here */
-	if (panel->lp11_init)
-		goto exit;
 
 	rc = dsi_panel_reset(panel);
 #ifdef CONFIG_TARGET_PROJECT_K7T
@@ -568,10 +540,9 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	goto exit;
 
 error_disable_gpio:
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
-#endif /* end */
+
 	if (gpio_is_valid(panel->bl_config.en_gpio))
 		gpio_set_value(panel->bl_config.en_gpio, 0);
 
@@ -582,15 +553,24 @@ error_disable_gpio:
 	if (gpio_is_valid(panel->reset_config.lcm_enn_gpio))
 		gpio_set_value(panel->reset_config.lcm_enn_gpio, 0);
 #endif
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
+
 	(void)dsi_panel_set_pinctrl_state(panel, false);
 
 error_disable_vregs:
 	(void)dsi_pwr_enable_regulator(&panel->power_info, false);
-#endif /* end */
+
 exit:
 	return rc;
 }
+
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+static bool lcd_reset_keep_high = false;
+void set_lcd_reset_gpio_keep_high(bool en)
+{
+	lcd_reset_keep_high = en;
+}
+EXPORT_SYMBOL(set_lcd_reset_gpio_keep_high);
+#endif
 
 static int dsi_panel_power_off(struct dsi_panel *panel)
 {
@@ -599,31 +579,23 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
 #endif
 	usleep_range(11000, 11010);
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
+
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on) {
+		#ifdef CONFIG_TARGET_PROJECT_C3Q
+		if (lcd_reset_keep_high)
+			DSI_WARN("%s: lcd-reset-gpio keep high\n", __func__);
+		else {
+			gpio_set_value(panel->reset_config.reset_gpio, 0);
+			DSI_ERR("%s: lcd-reset_gpio = 0\n", __func__);
+		}
+		#else
 		gpio_set_value(panel->reset_config.reset_gpio, 0);
+		#endif
 	}
-#endif /* end */
-
-#ifdef CONFIG_TARGET_PROJECT_C3Q
-	if (gpio_is_valid(panel->reset_config.lcm_enn_gpio))
-		gpio_set_value(panel->reset_config.lcm_enn_gpio, 1);
-
-	if (gpio_is_valid(panel->reset_config.lcm_enp_gpio))
-		gpio_set_value(panel->reset_config.lcm_enp_gpio, 1);
-
-	if (gpio_is_valid(panel->reset_config.reset_gpio))
-		gpio_set_value(panel->reset_config.reset_gpio, 1);
-
-	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
-					!panel->reset_gpio_always_on) {
-		gpio_set_value(panel->reset_config.reset_gpio, 1);
-	}
-#endif
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -635,18 +607,10 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 				 rc);
 	}
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
-	rc = dsi_panel_set_pinctrl_state(panel, false);
-	if (rc) {
-		DSI_ERR("[%s] failed set pinctrl state, rc=%d\n", panel->name,
-		       rc);
-	}
-
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 				panel->name, rc);
-#endif /* end */
 
 	return rc;
 }
@@ -702,7 +666,6 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 static int dsi_panel_pinctrl_deinit(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -750,7 +713,6 @@ static int dsi_panel_pinctrl_init(struct dsi_panel *panel)
 error:
 	return rc;
 }
-#endif /* end */
 
 static int dsi_panel_wled_register(struct dsi_panel *panel,
 		struct dsi_backlight_config *bl)
@@ -2292,9 +2254,20 @@ static int dsi_panel_parse_reset_sequence(struct dsi_panel *panel)
 	const u32 *arr;
 	struct dsi_parser_utils *utils = &panel->utils;
 	struct dsi_reset_seq *seq;
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	bool fts_reset_seq = false;
+#endif
 
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
+	
+#ifdef CONFIG_TARGET_PROJECT_C3Q
+	fts_reset_seq = utils->read_bool(utils->data,
+		"qcom,mdss-dsi-focaltech-reset-sequence");
+
+	if (fts_ts_variant && !fts_reset_seq) 
+		return 0;
+#endif
 
 	arr = utils->get_property(utils->data,
 			"qcom,mdss-dsi-reset-sequence", &length);
@@ -2477,7 +2450,6 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 		goto error;
 	}
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	panel->reset_config.disp_en_gpio = utils->get_named_gpio(utils->data,
 						"qcom,5v-boost-gpio",
 						0);
@@ -2492,20 +2464,19 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 				 panel->name, rc);
 		}
 	}
-#endif /* end */
 
 #ifdef CONFIG_TARGET_PROJECT_C3Q
 	panel->reset_config.lcm_enp_gpio = utils->get_named_gpio(utils->data,
 					"qcom,lcm-enp-gpio", 0);
 	if (!gpio_is_valid(panel->reset_config.lcm_enp_gpio)) {
-			DSI_DEBUG("[%s] lcm-enp-gpio is not set, rc=%d\n",
+			pr_err("[%s] lcm-enp-gpio is not set, rc=%d\n",
 				 panel->name, rc);
 	}
 
 	panel->reset_config.lcm_enn_gpio = utils->get_named_gpio(utils->data,
 					"qcom,lcm-enn-gpio", 0);
 	if (!gpio_is_valid(panel->reset_config.lcm_enn_gpio)) {
-			DSI_DEBUG("[%s] lcm-enn-gpio is not set, rc=%d\n",
+			pr_err("[%s] lcm-enn-gpio is not set, rc=%d\n",
 				 panel->name, rc);
 	}
 #endif
@@ -3768,8 +3739,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		goto error;
 
-	#ifdef CONFIG_TARGET_PROJECT_C3Q /* Because node in nvt_ts failed to count>0 */
+	#ifdef CONFIG_TARGET_PROJECT_C3Q
 	else {
+		 
+               	//Because node in nvt_ts failed to count>0 
 		lcd_active_panel = &panel->drm_panel;
 	}
 	#endif
@@ -3871,20 +3844,18 @@ int dsi_panel_drv_init(struct dsi_panel *panel,
 		goto exit;
 	}
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	rc = dsi_panel_pinctrl_init(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to init pinctrl, rc=%d\n",
 				panel->name, rc);
 		goto error_vreg_put;
 	}
-#endif /* end */
 
 	rc = dsi_panel_gpio_request(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to request gpios, rc=%d\n", panel->name,
 		       rc);
-		goto error_gpio_request;
+		goto error_pinctrl_deinit;
 	}
 
 	rc = dsi_panel_bl_register(panel);
@@ -3904,16 +3875,12 @@ int dsi_panel_drv_init(struct dsi_panel *panel,
 
 	goto exit;
 
-error_gpio_request:
-	(void)dsi_panel_gpio_request(panel);
 error_gpio_release:
 	(void)dsi_panel_gpio_release(panel);
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 error_pinctrl_deinit:
 	(void)dsi_panel_pinctrl_deinit(panel);
 error_vreg_put:
 	(void)dsi_panel_vreg_put(panel);
-#endif /* end */
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
@@ -3940,12 +3907,10 @@ int dsi_panel_drv_deinit(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to release gpios, rc=%d\n", panel->name,
 		       rc);
 
-#ifdef CONFIG_TARGET_PROJECT_K7T /* HACK: disable for xiaomi C3Q device */
 	rc = dsi_panel_pinctrl_deinit(panel);
 	if (rc)
 		DSI_ERR("[%s] failed to deinit gpios, rc=%d\n", panel->name,
 		       rc);
-#endif
 
 	rc = dsi_panel_vreg_put(panel);
 	if (rc)
