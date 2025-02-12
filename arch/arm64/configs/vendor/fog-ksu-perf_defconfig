@@ -16,6 +16,11 @@ CONFIG_EROFS_FS_ZIP=y
 # BORE scheduler
 CONFIG_SCHED_BORE=y
 # ====================================
+# NTSYNC-backported | TESTING...
+# Need futex + futex2-backported
+CONFIG_FUTEX=y
+CONFIG_FUTEX2=y
+# ====================================
 # MGLRU
 CONFIG_LRU_GEN=y
 CONFIG_LRU_GEN_ENABLED=y
