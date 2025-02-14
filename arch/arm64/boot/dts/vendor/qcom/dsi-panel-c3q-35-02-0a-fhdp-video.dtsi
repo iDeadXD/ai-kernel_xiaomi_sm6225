@@ -38,13 +38,6 @@ qcom,mdss_dsi_panel_c3q_35_02_0a_fhdp_video {
 				qcom,esd-err-irq-gpio = <&tlmm 33 2002>;
 				qcom,mdss-pan-physical-width-dimension = <0x44>;
 				qcom,mdss-pan-physical-height-dimension = <0x9c>;
-				qcom,esd-check-enabled;
-				qcom,mdss-dsi-panel-status-check-mode = "reg_read";
-				qcom,mdss-dsi-panel-status-command = <0x6010001 0x10a>;
-				qcom,mdss-dsi-panel-status-command-state = "dsi_hs_mode";
-				qcom,mdss-dsi-panel-status-value = <0x9c>;
-				qcom,mdss-dsi-panel-on-check-value = <0x9c>;
-				qcom,mdss-dsi-panel-status-read-length = <0x01>;
 				qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0", "src_byte_clk0", "src_pixel_clk0", "shadow_byte_clk0", "shadow_pixel_clk0";
 				qcom,panel-supply-entries = <&dsi_panel_pwr_supply_no_labibb>;
 				pwms = <&pm6125_pwm 0 0>;

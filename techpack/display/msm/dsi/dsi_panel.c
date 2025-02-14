@@ -3594,8 +3594,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 	if (!rc) {
 		if (!strcmp(string, "bta_check")) {
 			esd_config->status_mode = ESD_MODE_SW_BTA;
-		} else if (!strcmp(string, "reg_read")) {
-			esd_config->status_mode = ESD_MODE_REG_READ;
+
 		} else if (!strcmp(string, "te_signal_check")) {
 			if (panel->panel_mode == DSI_OP_CMD_MODE) {
 				esd_config->status_mode = ESD_MODE_PANEL_TE;
@@ -3776,9 +3775,9 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		DSI_DEBUG("failed to get dms info, rc=%d\n", rc);
 
-	rc = dsi_panel_parse_esd_config(panel);
-	if (rc)
-		DSI_DEBUG("failed to parse esd config, rc=%d\n", rc);
+	// rc = dsi_panel_parse_esd_config(panel);
+	// if (rc)
+	// 	DSI_DEBUG("failed to parse esd config, rc=%d\n", rc);
 
 #ifdef CONFIG_TARGET_PROJECT_K7T
 	panel->doze_mode = DSI_DOZE_LPM;
