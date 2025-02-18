@@ -14,7 +14,7 @@ CONFIG_EROFS_FS_SECURITY=y
 CONFIG_EROFS_FS_ZIP=y
 # ====================================
 # BORE scheduler
-CONFIG_SCHED_BORE=n
+CONFIG_SCHED_BORE=y
 # ====================================
 # Unset KernelSU
 CONFIG_KSU=n
