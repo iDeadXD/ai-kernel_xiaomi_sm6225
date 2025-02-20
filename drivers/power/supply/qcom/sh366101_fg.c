@@ -67,6 +67,7 @@ enum sh_fg_reg_idx {
 	SH_FG_REG_BAT_FCC,
 	SH_FG_REG_RESET,
 	SH_FG_REG_SOC_CYCLE,
+	SH_FG_REG_DESIGN_CAPACITY,
 	NUM_REGS,
 };
 
@@ -87,6 +88,7 @@ static u32 sh366101_regs[NUM_REGS] = {
     0x0E,		       /* BAT_FCC */
     CMDMASK_ALTMAC_W | 0x41,   /* RESET */
     0x1A,		       /* SOC_CYCLE */
+	0x3C			   /* SH_FG_REG_DESIGN_CAPACITY */
 };
 
 enum sh_fg_device {
@@ -136,6 +138,7 @@ struct sh_fg_chip {
 	s32 batt_ocv;
 	s32 batt_fcc; /* Full charge capacity */
 	s32 batt_rmc; /* Remaining capacity */
+	s32 batt_designcap; /* 20211116, Ethan */
 	s32 batt_volt;
 	s32 aver_batt_volt;
 	s32 batt_temp;
@@ -897,6 +900,20 @@ static s32 fg_read_rmc(struct sh_fg_chip* sm)
 	return (s32)((s16)data * MA_TO_UA);
 }
 
+static s32 fg_read_designcap(struct sh_fg_chip* sm) /* 20211108, Ethan */
+{
+	int ret;
+	u16 data = 0;
+
+	ret = fg_read_sbs_word(sm, sm->regs[SH_FG_REG_DESIGN_CAPACITY], &data);
+	if (ret < 0) {
+		pr_err("could not read DesignCap, ret=%d\n", ret);
+		return ret;
+	}
+
+	return (s32)((s16)data * MA_TO_UA); /* 20211112, Ethan */
+}
+
 #if !(IS_PACK_ONLY)
 static s32 get_battery_status(struct sh_fg_chip* sm)
 {
@@ -995,6 +1012,7 @@ static enum power_supply_property fg_props[] = {
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_RESISTANCE_ID,
 	POWER_SUPPLY_PROP_SHUTDOWN_DELAY,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN
 };
 
 static void fg_monitor_workfunc(struct work_struct* work);
@@ -1084,6 +1102,10 @@ static s32 fg_get_property(struct power_supply* psy, enum power_supply_property 
 
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
 		val->intval = fg_get_batt_capacity_level(sm);
+		break;
+	
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = fg_read_designcap(sm);
 		break;
 
 	case POWER_SUPPLY_PROP_TEMP:
@@ -1300,6 +1322,7 @@ static void fg_refresh_status(struct sh_fg_chip* sm)
 		sm->batt_curr = fg_read_current(sm);
 		sm->batt_soc_cycle = fg_get_cycle(sm);
 		sm->batt_rmc = fg_read_rmc(sm);
+		sm->batt_designcap = fg_read_designcap(sm);
 		if (sm->en_temp_in)
 			sm->batt_temp = fg_read_temperature(sm, TEMPERATURE_IN);
 		else if (sm->en_temp_ex)

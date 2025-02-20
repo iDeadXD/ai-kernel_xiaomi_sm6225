@@ -149,5 +149,40 @@
 #define FILE_DECODE_RETRY           2
 #define FILE_DECODE_DELAY           100
 
+static inline struct power_supply *get_power_supply_by_name(char *name)
+{
+	if (!name)
+		return (struct power_supply *)NULL;
+	else
+		return power_supply_get_by_name(name);
+}
+
+#define psy_do_property(name, function, property, value) \
+({	\
+	struct power_supply *psy;	\
+	int ret = 0;	\
+	psy = get_power_supply_by_name((name));	\
+	if (!psy) {	\
+		pr_err("%s: Fail to "#function" psy (%s)\n",	\
+			__func__, (name));	\
+		value.intval = 0;	\
+		ret = -ENOENT;	\
+	} else {	\
+		if (psy->desc->function##_property != NULL) { \
+			ret = psy->desc->function##_property(psy, \
+				(enum power_supply_property) (property), &(value)); \
+			if (ret < 0) {	\
+				pr_err("%s: Fail to %s "#function" (%d=>%d)\n", \
+						__func__, name, (property), ret);	\
+				value.intval = 0;	\
+			}	\
+		} else {	\
+			ret = -ENOSYS;	\
+		}	\
+		power_supply_put(psy);		\
+	}					\
+	ret;	\
+})
+
 #endif /* SH366101_FG_H */
 
