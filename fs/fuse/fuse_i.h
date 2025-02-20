@@ -348,9 +348,6 @@ struct fuse_req {
 	/** Entry on the interrupts list  */
 	struct list_head intr_entry;
 
-	/* Input/output arguments */
-	struct fuse_args *args;
-
 	/** refcount */
 	refcount_t count;
 
@@ -362,19 +359,71 @@ struct fuse_req {
 	/* Request flags, updated with test/set/clear_bit() */
 	unsigned long flags;
 
-	/* The request input header */
-	struct {
-		struct fuse_in_header h;
-	} in;
+	/** The request input */
+	struct fuse_in in;
 
-	/* The request output header */
-	struct {
-		struct fuse_out_header h;
-	} out;
+	/** The request output */
+	struct fuse_out out;
 
 	/** Used to wake up the task waiting for completion of request*/
 	wait_queue_head_t waitq;
 
+	/** Data for asynchronous requests */
+	union {
+		struct {
+			struct fuse_release_in in;
+			struct inode *inode;
+		} release;
+		struct fuse_init_in init_in;
+		struct fuse_init_out init_out;
+		struct cuse_init_in cuse_init_in;
+		struct {
+			struct fuse_read_in in;
+			u64 attr_ver;
+		} read;
+		struct {
+			struct fuse_write_in in;
+			struct fuse_write_out out;
+			struct fuse_req *next;
+		} write;
+		struct fuse_notify_retrieve_in retrieve_in;
+	} misc;
+
+	/** page vector */
+	struct page **pages;
+
+	/** page-descriptor vector */
+	struct fuse_page_desc *page_descs;
+
+	/** size of the 'pages' array */
+	unsigned max_pages;
+
+	/** inline page vector */
+	struct page *inline_pages[FUSE_REQ_INLINE_PAGES];
+
+	/** inline page-descriptor vector */
+	struct fuse_page_desc inline_page_descs[FUSE_REQ_INLINE_PAGES];
+
+	/** number of pages in vector */
+	unsigned num_pages;
+
+	/** File used in the request (or NULL) */
+	struct fuse_file *ff;
+
+	/** Inode used in the request or NULL */
+	struct inode *inode;
+
+	/** AIO control block */
+	struct fuse_io_priv *io;
+
+	/** Link on fi->writepages */
+	struct list_head writepages_entry;
+
+	/** Request completion callback */
+	void (*end)(struct fuse_conn *, struct fuse_req *);
+
+	/** Request is stolen from fuse_file->reserved_req */
+	struct file *stolen_file;
 };
 
 struct fuse_iqueue {

@@ -1355,9 +1355,8 @@ static inline size_t fuse_get_frag_size(const struct iov_iter *ii,
 	return min(iov_iter_single_seg_count(ii), max_size);
 }
 
-static int fuse_get_user_pages(struct fuse_args_pages *ap, struct iov_iter *ii,
-			       size_t *nbytesp, int write,
-			       unsigned int max_pages)
+static int fuse_get_user_pages(struct fuse_req *req, struct iov_iter *ii,
+			       size_t *nbytesp, int write)
 {
 	size_t nbytes = 0;  /* # bytes already packed in req */
 	ssize_t ret = 0;
@@ -1368,21 +1367,21 @@ static int fuse_get_user_pages(struct fuse_args_pages *ap, struct iov_iter *ii,
 		size_t frag_size = fuse_get_frag_size(ii, *nbytesp);
 
 		if (write)
-			ap->args.in_args[1].value = (void *) user_addr;
+			req->in.args[1].value = (void *) user_addr;
 		else
-			ap->args.out_args[0].value = (void *) user_addr;
+			req->out.args[0].value = (void *) user_addr;
 
 		iov_iter_advance(ii, frag_size);
 		*nbytesp = frag_size;
 		return 0;
 	}
 
-	while (nbytes < *nbytesp && ap->num_pages < max_pages) {
+	while (nbytes < *nbytesp && req->num_pages < req->max_pages) {
 		unsigned npages;
 		size_t start;
-		ret = iov_iter_get_pages(ii, &ap->pages[ap->num_pages],
+		ret = iov_iter_get_pages(ii, &req->pages[req->num_pages],
 					*nbytesp - nbytes,
-					max_pages - ap->num_pages,
+					req->max_pages - req->num_pages,
 					&start);
 		if (ret < 0)
 			break;
@@ -1393,19 +1392,19 @@ static int fuse_get_user_pages(struct fuse_args_pages *ap, struct iov_iter *ii,
 		ret += start;
 		npages = (ret + PAGE_SIZE - 1) / PAGE_SIZE;
 
-		ap->descs[ap->num_pages].offset = start;
-		fuse_page_descs_length_init(ap->descs, ap->num_pages, npages);
+		req->page_descs[req->num_pages].offset = start;
+		fuse_page_descs_length_init(req, req->num_pages, npages);
 
-		ap->num_pages += npages;
-		ap->descs[ap->num_pages - 1].length -=
+		req->num_pages += npages;
+		req->page_descs[req->num_pages - 1].length -=
 			(PAGE_SIZE - ret) & (PAGE_SIZE - 1);
 	}
 
-	ap->user_pages = true;
+	req->user_pages = true;
 	if (write)
-		ap->args.in_pages = 1;
+		req->in.argpages = 1;
 	else
-		ap->args.out_pages = 1;
+		req->out.argpages = 1;
 
 	*nbytesp = nbytes;
 
@@ -1427,16 +1426,16 @@ ssize_t fuse_direct_io(struct fuse_io_priv *io, struct iov_iter *iter,
 	pgoff_t idx_from = pos >> PAGE_SHIFT;
 	pgoff_t idx_to = (pos + count - 1) >> PAGE_SHIFT;
 	ssize_t res = 0;
+	struct fuse_req *req;
 	int err = 0;
-	struct fuse_io_args *ia;
-	unsigned int max_pages;
 
-	max_pages = iov_iter_npages(iter, fc->max_pages);
-	ia = fuse_io_alloc(io, max_pages);
-	if (!ia)
-		return -ENOMEM;
+	if (io->async)
+		req = fuse_get_req_for_background(fc, fuse_iter_npages(iter));
+	else
+		req = fuse_get_req(fc, fuse_iter_npages(iter));
+	if (IS_ERR(req))
+		return PTR_ERR(req);
 
-	ia->io = io;
 	if (!cuse && fuse_range_is_writeback(inode, idx_from, idx_to)) {
 		if (!write)
 			inode_lock(inode);
@@ -1447,49 +1446,46 @@ ssize_t fuse_direct_io(struct fuse_io_priv *io, struct iov_iter *iter,
 
 	io->should_dirty = !write && iter_is_iovec(iter);
 	while (count) {
-		ssize_t nres;
+		size_t nres;
 		fl_owner_t owner = current->files;
 		size_t nbytes = min(count, nmax);
-
-		err = fuse_get_user_pages(&ia->ap, iter, &nbytes, write,
-					  max_pages);
+		err = fuse_get_user_pages(req, iter, &nbytes, write);
 		if (err && !nbytes)
 			break;
 
-		if (write) {
-			if (!capable(CAP_FSETID))
-				ia->write.in.write_flags |= FUSE_WRITE_KILL_PRIV;
+		if (write)
+			nres = fuse_send_write(req, io, pos, nbytes, owner);
+		else
+			nres = fuse_send_read(req, io, pos, nbytes, owner);
 
-			nres = fuse_send_write(ia, pos, nbytes, owner);
-		} else {
-			nres = fuse_send_read(ia, pos, nbytes, owner);
-		}
-
-		if (!io->async || nres < 0) {
-			fuse_release_user_pages(&ia->ap, io->should_dirty);
-			fuse_io_free(ia);
-		}
-		ia = NULL;
-		if (nres < 0) {
-			err = nres;
+		if (!io->async)
+			fuse_release_user_pages(req, io->should_dirty);
+		if (req->out.h.error) {
+			err = req->out.h.error;
+			break;
+		} else if (nres > nbytes) {
+			res = 0;
+			err = -EIO;
 			break;
 		}
-		WARN_ON(nres > nbytes);
-
 		count -= nres;
 		res += nres;
 		pos += nres;
 		if (nres != nbytes)
 			break;
 		if (count) {
-			max_pages = iov_iter_npages(iter, fc->max_pages);
-			ia = fuse_io_alloc(io, max_pages);
-			if (!ia)
+			fuse_put_request(fc, req);
+			if (io->async)
+				req = fuse_get_req_for_background(fc,
+					fuse_iter_npages(iter));
+			else
+				req = fuse_get_req(fc, fuse_iter_npages(iter));
+			if (IS_ERR(req))
 				break;
 		}
 	}
-	if (ia)
-		fuse_io_free(ia);
+	if (!IS_ERR(req))
+		fuse_put_request(fc, req);
 	if (res > 0)
 		*ppos = pos;
 
