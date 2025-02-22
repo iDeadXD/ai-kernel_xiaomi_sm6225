@@ -7,6 +7,7 @@
 #include <linux/poison.h>
 #include <linux/const.h>
 #include <linux/kernel.h>
+#include <asm/barrier.h>
 
 /*
  * Simple doubly linked list implementation.
@@ -161,6 +162,24 @@ static inline void list_del_init(struct list_head *entry)
 }
 
 /**
+ * list_del_init_careful - deletes entry from list and reinitialize it.
+ * @entry: the element to delete from the list.
+ *
+ * This is the same as list_del_init(), except designed to be used
+ * together with list_empty_careful() in a way to guarantee ordering
+ * of other memory operations.
+ *
+ * Any memory operations done before a list_del_init_careful() are
+ * guaranteed to be visible after a list_empty_careful() test.
+ */
+static inline void list_del_init_careful(struct list_head *entry)
+{
+	__list_del_entry(entry);
+	entry->prev = entry;
+	smp_store_release(&entry->next, entry);
+}
+
+/**
  * list_move - delete from one list and add as another's head
  * @list: the entry to move
  * @head: the head that will precede our entry
@@ -229,7 +248,7 @@ static inline int list_empty(const struct list_head *head)
  */
 static inline int list_empty_careful(const struct list_head *head)
 {
-	struct list_head *next = head->next;
+	struct list_head *next = smp_load_acquire(&head->next);
 	return (next == head) && (next == head->prev);
 }
 

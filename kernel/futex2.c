@@ -22,6 +22,9 @@
 #include <linux/spinlock.h>
 #include <linux/syscalls.h>
 #include <uapi/linux/futex.h>
+#include <linux/uaccess.h>
+#include <linux/list.h>
+#include <linux/bootmem.h>
 
 #ifdef CONFIG_X86_64
 #include <linux/compat.h>
@@ -321,7 +324,7 @@ again:
 		}
 
 		key->pointer = futex_get_inode_uuid(inode);
-		key->index = (unsigned long)basepage_index(tail);
+		key->index = (unsigned long)page_index(tail);
 		key->offset |= FUT_OFF_INODE;
 
 		rcu_read_unlock();
@@ -355,7 +358,7 @@ static struct futex_bucket *futex_get_bucket(void __user *uaddr,
 	/* Checking if uaddr is valid and accessible */
 	if (unlikely(!IS_ALIGNED(address, sizeof(u32))))
 		return ERR_PTR(-EINVAL);
-	if (unlikely(!access_ok(address, sizeof(u32))))
+	if (unlikely(!access_ok(VERIFY_READ, (const void __user *)address, sizeof(u32))))
 		return ERR_PTR(-EFAULT);
 
 	key->offset = address % PAGE_SIZE;

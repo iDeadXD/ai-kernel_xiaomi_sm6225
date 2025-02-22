@@ -2481,7 +2481,6 @@ static int __fixup_pi_state_owner(u32 __user *uaddr, struct futex_q *q,
 	u32 uval, uninitialized_var(curval), newval, newtid;
 	struct futex_pi_state *pi_state = q->pi_state;
 	struct task_struct *oldowner, *newowner;
-	u32 newtid;
 	int ret, err = 0;
 
 	lockdep_assert_held(q->lock_ptr);
@@ -2834,7 +2833,7 @@ static int futex_wait_setup(u32 __user *uaddr, u32 val, unsigned int flags,
 	 */
 	do {
 		ret = get_futex_key(uaddr, flags & FLAGS_SHARED,
-				    &q->key, FUTEX_READ);
+				    &q->key, VERIFY_READ);
 		if (unlikely(ret != 0))
 			return ret;
 
@@ -2871,7 +2870,7 @@ static int do_futex_wait_multiple(struct futex_wait_block *wb,
 		qs[i].bitset = wb[i].bitset;
 
 		ret = get_futex_key(wb[i].uaddr, flags & FLAGS_SHARED,
-				    &qs[i].key, FUTEX_READ);
+				    &qs[i].key, VERIFY_READ);
 		if (unlikely(ret != 0)) {
 			for (--i; i >= 0; i--)
 				put_futex_key(&qs[i].key);
@@ -3090,6 +3089,7 @@ static int futex_lock_pi(u32 __user *uaddr, unsigned int flags,
 			 ktime_t *time, int trylock)
 {
 	struct hrtimer_sleeper timeout, *to;
+	struct task_struct *exiting = NULL;
 	struct futex_pi_state *pi_state = NULL;
 	struct rt_mutex_waiter rt_waiter;
 	struct futex_hash_bucket *hb;
