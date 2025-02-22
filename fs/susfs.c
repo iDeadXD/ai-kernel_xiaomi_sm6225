@@ -14,18 +14,13 @@
 #include <linux/fdtable.h>
 #include <linux/statfs.h>
 #include <linux/susfs.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,15,0)
-#include "pnode.h"
-#endif
+#include "mount.h"
 
 static spinlock_t susfs_spin_lock;
-#ifdef CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT
-static const char *magic_mount_workdir = "/debug_ramdisk/workdir";
-#endif
 
 extern bool susfs_is_current_ksu_domain(void);
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-extern void ksu_try_umount(const char *mnt, bool check_mnt, int flags);
+extern void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid);
 #endif
 
 #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
@@ -43,16 +38,26 @@ static DEFINE_HASHTABLE(SUS_PATH_HLIST, 10);
 static int susfs_update_sus_path_inode(char *target_pathname) {
 	struct path p;
 	struct inode *inode = NULL;
+	const char *dev_type;
 
 	if (kern_path(target_pathname, LOOKUP_FOLLOW, &p)) {
 		SUSFS_LOGE("Failed opening file '%s'\n", target_pathname);
 		return 1;
 	}
 
-	// We don't allow path of which filesystem type is "tmpfs", because its inode->i_ino is starting from 1 again,
-	// which will cause wrong comparison in function susfs_sus_ino_for_filldir64()
-	if (strcmp(p.mnt->mnt_sb->s_type->name, "tmpfs") == 0) {
-		SUSFS_LOGE("target_pathname: '%s' cannot be added since its filesystem is 'tmpfs'\n", target_pathname);
+	// - We don't allow paths of which filesystem type is "tmpfs" or "fuse".
+	//   For tmpfs, because its starting inode->i_ino will begin with 1 again,
+	//   so it will cause wrong comparison in function susfs_sus_ino_for_filldir64()
+	//   For fuse, which is almost storage related, sus_path should not handle any paths of
+	//   which filesystem is "fuse" as well, since app can write to "fuse" and lookup files via
+	//   like binder / system API (you can see the uid is changed to 1000)/
+	// - so sus_path should be applied only on read-only filesystem like "erofs" or "f2fs", but not "tmpfs" or "fuse",
+	//   people may rely on HMA for /data isolation instead.
+	dev_type = p.mnt->mnt_sb->s_type->name;
+	if (!strcmp(dev_type, "tmpfs") ||
+		!strcmp(dev_type, "fuse")) {
+		SUSFS_LOGE("target_pathname: '%s' cannot be added since its filesystem type is '%s'\n",
+						target_pathname, dev_type);
 		path_put(&p);
 		return 1;
 	}
@@ -136,6 +141,7 @@ int susfs_sus_ino_for_filldir64(unsigned long ino) {
 #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 static LIST_HEAD(LH_SUS_MOUNT);
 static void susfs_update_sus_mount_inode(char *target_pathname) {
+	struct mount *mnt = NULL;
 	struct path p;
 	struct inode *inode = NULL;
 	int err = 0;
@@ -143,6 +149,18 @@ static void susfs_update_sus_mount_inode(char *target_pathname) {
 	err = kern_path(target_pathname, LOOKUP_FOLLOW, &p);
 	if (err) {
 		SUSFS_LOGE("Failed opening file '%s'\n", target_pathname);
+		return;
+	}
+
+	/* It is important to check if the mount has a legit peer group id, if so we cannot add them to sus_mount,
+	 * since there are chances that the mount is a legit mountpoint, and it can be misued by other susfs functions in future.
+	 * And by doing this it won't affect the sus_mount check as other susfs functions check by mnt->mnt_id
+	 * instead of INODE_STATE_SUS_MOUNT.
+	 */
+	mnt = real_mount(p.mnt);
+	if (mnt->mnt_group_id > 0 && // 0 means no peer group
+		mnt->mnt_group_id < DEFAULT_SUS_MNT_GROUP_ID) {
+		SUSFS_LOGE("skip setting SUS_MOUNT inode state for path '%s' since its source mount has a legit peer group id\n", target_pathname);
 		return;
 	}
 
@@ -213,8 +231,16 @@ int susfs_add_sus_mount(struct st_susfs_sus_mount* __user user_info) {
 
 #ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
 int susfs_auto_add_sus_bind_mount(const char *pathname, struct path *path_target) {
+	struct mount *mnt;
 	struct inode *inode;
 
+	mnt = real_mount(path_target->mnt);
+	if (mnt->mnt_group_id > 0 && // 0 means no peer group
+		mnt->mnt_group_id < DEFAULT_SUS_MNT_GROUP_ID) {
+		SUSFS_LOGE("skip setting SUS_MOUNT inode state for path '%s' since its source mount has a legit peer group id\n", pathname);
+		// return 0 here as we still want it to be added to try_umount list
+		return 0;
+	}
 	inode = path_target->dentry->d_inode;
 	if (!inode) return 1;
 	if (!(inode->i_state & INODE_STATE_SUS_MOUNT)) {
@@ -535,11 +561,10 @@ void susfs_try_umount(uid_t target_uid) {
 
 	// We should umount in reversed order
 	list_for_each_entry_reverse(cursor, &LH_TRY_UMOUNT_PATH, list) {
-		SUSFS_LOGI("umounting '%s' for uid: %d\n", cursor->info.target_pathname, target_uid);
 		if (cursor->info.mnt_mode == TRY_UMOUNT_DEFAULT) {
-			ksu_try_umount(cursor->info.target_pathname, false, 0);
+			ksu_try_umount(cursor->info.target_pathname, false, 0, target_uid);
 		} else if (cursor->info.mnt_mode == TRY_UMOUNT_DETACH) {
-			ksu_try_umount(cursor->info.target_pathname, false, MNT_DETACH);
+			ksu_try_umount(cursor->info.target_pathname, false, MNT_DETACH, target_uid);
 		} else {
 			SUSFS_LOGE("failed umounting '%s' for uid: %d, mnt_mode '%d' not supported\n",
 							cursor->info.target_pathname, target_uid, cursor->info.mnt_mode);
@@ -576,7 +601,7 @@ void susfs_auto_add_try_umount_for_bind_mount(struct path *path) {
 	}
 
 #ifdef CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT
-	if (strstr(dpath, magic_mount_workdir)) {
+	if (strstr(dpath, MAGIC_MOUNT_WORKDIR)) {
 		is_magic_mount_path = true;
 	}
 #endif
@@ -602,7 +627,11 @@ void susfs_auto_add_try_umount_for_bind_mount(struct path *path) {
 
 #ifdef CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT
 	if (is_magic_mount_path) {
+<<<<<<< HEAD
 		strncpy(new_list->info.target_pathname, dpath + strlen(magic_mount_workdir), SUSFS_MAX_LEN_PATHNAME-1);
+=======
+		strncpy(new_list->info.target_pathname, dpath + strlen(MAGIC_MOUNT_WORKDIR), SUSFS_MAX_LEN_PATHNAME-1);
+>>>>>>> a89424974b8a (fs: Import SUSFS 1.5.5)
 		goto out_add_to_list;
 	}
 #endif
