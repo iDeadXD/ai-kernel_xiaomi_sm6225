@@ -16,6 +16,10 @@
 #include "dsi_parser.h"
 #include "sde_dbg.h"
 
+#ifdef CONFIG_POWERSUSPEND
+#include <linux/powersuspend.h>
+#endif
+
 #ifdef CONFIG_TARGET_PROJECT_K7T
 #include <linux/module.h>
 #include "exposure_adjustment.h"
@@ -500,6 +504,9 @@ EXPORT_SYMBOL(set_fts_ts_variant);
 static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
+#ifdef CONFIG_POWERSUSPEND
+ 	set_power_suspend_state_panel_hook(POWER_SUSPEND_INACTIVE);
+#endif
 #ifdef CONFIG_TARGET_PROJECT_K7T
 	int power_status = DRM_PANEL_BLANK_UNBLANK;
 	struct drm_panel_notifier notifier_data;
@@ -568,7 +575,9 @@ EXPORT_SYMBOL(set_lcd_reset_gpio_keep_high);
 static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
-
+#ifdef CONFIG_POWERSUSPEND
+ 	set_power_suspend_state_panel_hook(POWER_SUSPEND_ACTIVE);
+#endif
 #ifdef CONFIG_TARGET_PROJECT_C3Q
 	//usleep_range(11000, 11010);	
 	if (get_lct_tp_gesture_status()) 
