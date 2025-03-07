@@ -216,7 +216,7 @@ static void *typec_mux_match(struct device_connection *con, int ep, void *data)
 	}
 
 	/* Alternate Mode muxes */
-	nval = fwnode_property_count_u16(con->fwnode, "svid");
+	nval = fwnode_property_read_u16_array(con->fwnode, "svid", NULL, 0);
 	if (nval <= 0)
 		return NULL;
 
@@ -224,10 +224,10 @@ static void *typec_mux_match(struct device_connection *con, int ep, void *data)
 	if (!val)
 		return ERR_PTR(-ENOMEM);
 
-	ret = fwnode_property_read_u16_array(con->fwnode, "svid", val, nval);
-	if (ret < 0) {
+	nval = fwnode_property_read_u16_array(con->fwnode, "svid", val, nval);
+	if (nval < 0) {
 		kfree(val);
-		return ERR_PTR(ret);
+		return ERR_PTR(nval);
 	}
 
 	for (i = 0; i < nval; i++) {

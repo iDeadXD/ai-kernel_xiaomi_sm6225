@@ -420,9 +420,6 @@ int dwc3_event_buffers_setup(struct dwc3 *dwc)
 	/* Clear any stale event */
 	reg = dwc3_readl(dwc->regs, DWC3_GEVNTCOUNT(0));
 	dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0), reg);
-
-	/* setup GSI related event buffers */
-	dwc3_notify_event(dwc, DWC3_GSI_EVT_BUF_SETUP, 0);
 	return 0;
 }
 

@@ -421,8 +421,6 @@ static void qcom_glink_send_read_notify(struct qcom_glink *glink)
 	msg.param1 = 0;
 	msg.param2 = 0;
 
-	GLINK_INFO(glink->ilc, "send READ NOTIFY cmd\n");
-
 	qcom_glink_tx_write(glink, &msg, sizeof(msg), NULL, 0);
 
 	mbox_send_message(glink->mbox_chan, NULL);
@@ -663,6 +661,16 @@ static void qcom_glink_rx_done_work(struct kthread_work *work)
 						     intent_work);
 	struct qcom_glink *glink = channel->glink;
 	struct glink_core_rx_intent *intent, *tmp;
+	struct {
+		u16 id;
+		u16 lcid;
+		u32 liid;
+	} __packed cmd;
+
+	unsigned int cid = channel->lcid;
+	unsigned int iid;
+	bool reuse;
+
 	unsigned long flags;
 
 	spin_lock_irqsave(&channel->intent_lock, flags);
@@ -1883,6 +1891,9 @@ static void qcom_glink_rx_close_ack(struct qcom_glink *glink, unsigned int lcid)
 	struct rpmsg_channel_info chinfo;
 	struct glink_channel *channel;
 	unsigned long flags;
+
+	/* To wakeup any blocking writers */
+	wake_up_all(&glink->tx_avail_notify);
 
 	spin_lock_irqsave(&glink->idr_lock, flags);
 	channel = idr_find(&glink->lcids, lcid);
