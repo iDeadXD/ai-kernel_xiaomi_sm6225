@@ -87,8 +87,15 @@
 	((1UL << LZ4_MEMORY_USAGE) + \
 	 32) /* static size, for inter-version compatibility */
 
+#define LZ4_STREAMSIZE_U64 ((1 << (LZ4_MEMORY_USAGE - 3)) + 4)
+#define LZ4_STREAMSIZE	(LZ4_STREAMSIZE_U64 * sizeof(unsigned long long))
+
+#define LZ4_STREAMHCSIZE        262192
 #define LZ4_STREAMHCSIZE_SIZET (262192 / sizeof(size_t))
 
+#define LZ4_STREAMDECODESIZE_U64	4
+#define LZ4_STREAMDECODESIZE		 (LZ4_STREAMDECODESIZE_U64 * \
+	sizeof(unsigned long long))
 /*! LZ4_stream_t :
  *  Never ever use below internal definitions directly !
  *  These definitions are not API/ABI safe, and may change in future versions.
@@ -164,7 +171,7 @@ typedef union {
 /*-************************************************************************
  *	SIZE OF STATE
  **************************************************************************/
-#define LZ4_MEM_COMPRESS sizeof(LZ4_stream_t)
+#define LZ4_MEM_COMPRESS LZ4_STREAMSIZE
 #define LZ4HC_MEM_COMPRESS LZ4_STREAMHCSIZE
 
 /*-************************************************************************

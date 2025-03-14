@@ -48,9 +48,6 @@
 
 #define LZ4_FAST_DEC_LOOP 1
 
-static const unsigned inc32table[8] = { 0, 1, 2, 1, 0, 4, 4, 4 };
-static const int dec64table[8] = { 0, 0, 0, -1, -4, 1, 2, 3 };
-
 #if LZ4_FAST_DEC_LOOP
 
 static FORCE_INLINE void LZ4_memcpy_using_offset_base(BYTE *dstPtr,
@@ -1155,7 +1152,7 @@ ssize_t LZ4_arm64_decompress_safe_partial(const void *source,
         }
 #endif
         /* Finish in safe */
-	return __LZ4_decompress_generic(source, dest, srcPtr, dstPtr, inputSize, outputSize, endOnInputSize, partial_decode, noDict, (BYTE *)dest, NULL, 0);
+	return LZ4_decompress_generic(source, dest, srcPtr, dstPtr, inputSize, outputSize, endOnInputSize, partial_decode, noDict, (BYTE *)dest, NULL, 0);
 }
 
 ssize_t LZ4_arm64_decompress_safe(const void *source,
@@ -1181,7 +1178,7 @@ ssize_t LZ4_arm64_decompress_safe(const void *source,
         }
 #endif
         /* Finish in safe */
-	return __LZ4_decompress_generic(source, dest, srcPtr, dstPtr, inputSize, outputSize, endOnInputSize, decode_full_block, noDict, (BYTE *)dest, NULL, 0);
+	return LZ4_decompress_generic(source, dest, srcPtr, dstPtr, inputSize, outputSize, endOnInputSize, decode_full_block, noDict, (BYTE *)dest, NULL, 0);
 }
 
 #ifndef STATIC

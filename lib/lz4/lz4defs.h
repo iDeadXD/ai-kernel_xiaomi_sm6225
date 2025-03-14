@@ -118,6 +118,10 @@ typedef uintptr_t uptrval;
 #define MB (1 << 20)
 #define GB (1U << 30)
 
+#define MAXD_LOG 16
+#define MAX_DISTANCE ((1 << MAXD_LOG) - 1)
+#define STEPSIZE sizeof(size_t)
+
 #if defined(__x86_64__)
 typedef U64 reg_t; /* 64-bits in x32 mode */
 #else

@@ -814,10 +814,6 @@ void binder_alloc_free_buf(struct binder_alloc *alloc,
 	 * is used frequently for large buffers. This lock is not
 	 * needed for correctness here.
 	 */
-	if (buffer->clear_on_free) {
-		binder_alloc_clear_buf(alloc, buffer);
-		buffer->clear_on_free = false;
-	}
 	spin_lock(&alloc->lock);
 	binder_free_buf_locked(alloc, buffer);
 	spin_unlock(&alloc->lock);
@@ -919,10 +915,6 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 		/* Transaction should already have been freed */
 		BUG_ON(buffer->transaction);
 
-		if (buffer->clear_on_free) {
-			binder_alloc_clear_buf(alloc, buffer);
-			buffer->clear_on_free = false;
-		}
 		binder_free_buf_locked(alloc, buffer);
 		buffers++;
 	}
