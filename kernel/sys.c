@@ -1230,7 +1230,6 @@ static void override_custom_release(char __user *release, size_t len)
 	kfree(buf);
 
 }
-#endif
 
 #ifdef CONFIG_SPOOF_ABOUT_PHONE
 static void spoof_about_phone_kernel(char __user *release, size_t len)
@@ -1249,6 +1248,7 @@ static void spoof_about_phone_kernel(char __user *release, size_t len)
 	kfree(buf);
 
 }
+#endif
 #endif
 
 /*
