@@ -106,7 +106,7 @@ int ns_get_path_cb(struct path *path, ns_get_path_helper_t *ns_get_cb,
 		     void *private_data)
 {
 	struct ns_common *ns;
-	int ret;
+	void ret;
 
 again:
 	ns = ns_get_cb(private_data);

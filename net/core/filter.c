@@ -2165,6 +2165,34 @@ static const struct bpf_func_proto bpf_redirect_proto = {
 	.arg2_type      = ARG_ANYTHING,
 };
 
+BPF_CALL_2(bpf_msg_apply_bytes, struct sk_msg *, msg, u32, bytes)
+{
+	msg->apply_bytes = bytes;
+	return 0;
+}
+
+static const struct bpf_func_proto bpf_msg_apply_bytes_proto = {
+	.func           = bpf_msg_apply_bytes,
+	.gpl_only       = false,
+	.ret_type       = RET_INTEGER,
+	.arg1_type		= ARG_PTR_TO_CTX,
+	.arg2_type      = ARG_ANYTHING,
+};
+
+BPF_CALL_2(bpf_msg_cork_bytes, struct sk_msg *, msg, u32, bytes)
+{
+	msg->cork_bytes = bytes;
+	return 0;
+}
+
+static const struct bpf_func_proto bpf_msg_cork_bytes_proto = {
+	.func           = bpf_msg_cork_bytes,
+	.gpl_only       = false,
+	.ret_type       = RET_INTEGER,
+	.arg1_type		= ARG_PTR_TO_CTX,
+	.arg2_type      = ARG_ANYTHING,
+};
+
 BPF_CALL_1(bpf_get_cgroup_classid, const struct sk_buff *, skb)
 {
 	return task_get_classid(skb);
@@ -3547,26 +3575,6 @@ const struct bpf_func_proto bpf_tcp_sock_proto = {
 
 #endif /* CONFIG_INET */
 
-bool bpf_helper_changes_pkt_data(void *func)
-{
-	if (func == bpf_skb_vlan_push ||
-	    func == bpf_skb_vlan_pop ||
-	    func == bpf_skb_store_bytes ||
-	    func == bpf_skb_change_proto ||
-	    func == bpf_skb_change_head ||
-	    func == bpf_skb_change_tail ||
-	    func == bpf_skb_adjust_room ||
-	    func == bpf_skb_pull_data ||
-	    func == bpf_clone_redirect ||
-	    func == bpf_l3_csum_replace ||
-	    func == bpf_l4_csum_replace ||
-	    func == bpf_xdp_adjust_head ||
-	    func == bpf_xdp_adjust_meta)
-		return true;
-
-	return false;
-}
-
 static unsigned long bpf_skb_copy(void *dst_buff, const void *skb,
 				  unsigned long off, unsigned long len)
 {
@@ -4928,7 +4936,7 @@ bool bpf_helper_changes_pkt_data(void *func)
 	    func == bpf_l4_csum_replace ||
 	    func == bpf_xdp_adjust_head ||
 	    func == bpf_xdp_adjust_meta ||
-	    func == bpf_msg_pull_data ||
+	    func == bpf_skb_pull_data ||
 	    func == bpf_xdp_adjust_tail ||
 #if IS_ENABLED(CONFIG_IPV6_SEG6_BPF)
 	    func == bpf_lwt_seg6_store_bytes ||
@@ -5237,7 +5245,7 @@ sk_msg_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 	case BPF_FUNC_msg_cork_bytes:
 		return &bpf_msg_cork_bytes_proto;
 	case BPF_FUNC_msg_pull_data:
-		return &bpf_msg_pull_data_proto;
+		return &bpf_skb_pull_data_proto;
 	case BPF_FUNC_get_local_storage:
 		return &bpf_get_local_storage_proto;
 	default:

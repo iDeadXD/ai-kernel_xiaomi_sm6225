@@ -1737,7 +1737,7 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	switch (ptype) {
 	case BPF_PROG_TYPE_SK_SKB:
 	case BPF_PROG_TYPE_SK_MSG:
-		ret = sockmap_get_from_fd(attr, ptype, prog);
+		ret = sock_map_get_from_fd(attr, ptype, prog);
 		break;
 	case BPF_PROG_TYPE_LIRC_MODE2:
 		ret = lirc_prog_attach(attr, prog);
@@ -1790,12 +1790,10 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 		ptype = BPF_PROG_TYPE_CGROUP_DEVICE;
 		break;
 	case BPF_SK_MSG_VERDICT:
-		ret = sock_map_get_from_fd(attr, prog);
- 		break;
+		return sock_map_get_from_fd(attr, ptype);
 	case BPF_SK_SKB_STREAM_PARSER:
 	case BPF_SK_SKB_STREAM_VERDICT:
-		ret = sock_map_get_from_fd(attr, prog);
- 		break;
+		return sock_map_get_from_fd(attr, ptype);
 	case BPF_LIRC_MODE2:
 		return lirc_prog_detach(attr);
 	case BPF_FLOW_DISSECTOR:
@@ -2242,7 +2240,7 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 			if (urec_size != info.func_info_rec_size)
 				return -EINVAL;
 
-			if (bpf_dump_raw_ok()) {
+			if (bpf_dump_raw_ok(file->f_cred)) {
 				char __user *user_finfo;
 				user_finfo = u64_to_user_ptr(info.func_info);
 				ucnt = min_t(u32, info.func_info_cnt, ucnt);

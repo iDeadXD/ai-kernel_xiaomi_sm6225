@@ -627,13 +627,13 @@ static void btf_verifier_log_member(struct btf_verifier_env *env,
 	if (btf_type_kflag(struct_type))
 		__btf_verifier_log(log,
 				   "\t%s type_id=%u bitfield_size=%u bits_offset=%u",
-				   __btf_name_by_offset(btf, member->name_off),
+				   btf_name_by_offset(btf, member->name_off),
 				   member->type,
 				   BTF_MEMBER_BITFIELD_SIZE(member->offset),
 				   BTF_MEMBER_BIT_OFFSET(member->offset));
 	else
 		__btf_verifier_log(log, "\t%s type_id=%u bits_offset=%u",
-				   __btf_name_by_offset(btf, member->name_off),
+				   btf_name_by_offset(btf, member->name_off),
 				   member->type, member->offset);
 
 	if (fmt && *fmt) {
@@ -1934,7 +1934,7 @@ int btf_find_spin_lock(const struct btf *btf, const struct btf_type *t)
 			continue;
 		if (member_type->size != sizeof(struct bpf_spin_lock))
 			continue;
-		if (strcmp(__btf_name_by_offset(btf, member_type->name_off),
+		if (strcmp(btf_name_by_offset(btf, member_type->name_off),
 			   "bpf_spin_lock"))
 			continue;
 		if (off != -ENOENT)

@@ -134,6 +134,7 @@ struct bpf_func_state {
 	 */
 	u32 subprogno;
 	/* The following fields should be last. See copy_func_state() */
+	int acquired_refs;
 	struct bpf_reference_state *refs;
 	int allocated_stack;
 	struct bpf_stack_state *stack;
